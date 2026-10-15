@@ -8,7 +8,7 @@ if (!globalThis.crypto) globalThis.crypto = webcrypto;
 const token = 'test-server-token-with-at-least-32-characters';
 const usage = { date:'2026-10-15',mode:'live',enabled:true,liveAllowed:true,tokens:100,requests:1,tokenLimit:50000,requestLimit:10,outputLimit:320,blocked:false };
 const assessment = { reply:'Seven flamingos? Which one is in charge of security?',intent:'discovery',concernId:null,evidence:'',quality:1,objection:'What would this cost?',disposition:'considering',wantsToEnd:false,memory:['Doug has seven flamingos.'] };
-const payload = () => ({ action:'dialogue',requestId:randomUUID(),profile:structuredClone(NPCS[1]),text:'My antenna watches the lawn, what worries you?',history:[{ role:'assistant',content:'Who is this?' }],memory:['Earl borrowed the rake.'],context:{ trust:34,suspicion:17,event:'Office open',preoccupation:'a goose stole the driveway',resolved:['cost'] } });
+const payload = () => ({ action:'dialogue',requestId:randomUUID(),profile:structuredClone(NPCS[1]),text:'My antenna watches the lawn, what worries you?',history:[{ role:'assistant',content:'Who is this?' }],memory:['Earl borrowed the rake.'],context:{ trust:34,suspicion:17,event:'Office open',preoccupation:'a goose stole the driveway',resolved:['cost'],listedPrice:140,offerPrice:100 } });
 function setup(options = {}) {
   const calls = [], env = { GAME_SERVER_TOKEN:token,SUPABASE_URL:'https://test.supabase.co',SUPABASE_SECRET_KEYS:JSON.stringify({ default:'sb_secret_test-only' }),OPENAI_API_KEY:'fake-key-test-only' };
   const handler = createHandler({ env:n => env[n], fetcher:async (url,init) => {

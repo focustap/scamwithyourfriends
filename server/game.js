@@ -1,6 +1,8 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { NPCS } from '../assets/npcs.js';
 import { evaluatePersuasion } from './persuasion.js';
+import { parseOffer, priceRange } from './pricing.js';
+import { UPGRADES, LOOT_REWARDS } from './upgrades.js';
 
 const clamp = n => Math.max(0, Math.min(100, n));
 const code = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('');
@@ -39,7 +41,7 @@ export class Game {
     if (create) {
       if (this.rooms.size >= this.config.maxRooms) throw new Error('Office full. Try later.');
       let roomCode; do { roomCode = code(); } while (this.rooms.has(roomCode));
-      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, earned: 0, quota: 1500,
+      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, earned: 0, quota: 400, credits: 0, upgrades: [], lootResults: [],
         calls: 0, wins: 0, used: [], results: [], memories:{}, event: 'Welcome. Your benefits package is a stapler.', updatedAt: Date.now() };
       this.rooms.set(room.code, room);
     } else {
@@ -63,7 +65,7 @@ export class Game {
     if (room.phase === 'playing') throw new Error('Shift already started');
     if ([...room.players.values()].filter(p => p.socketId).length < 2) throw new Error('Two connected players are required');
     room.shift++; room.phase = 'playing'; room.earned = 0;
-    room.quota = Math.min(2500, 1500 + (room.players.size - 2) * 350 + (room.shift - 1) * 250);
+    room.quota = Math.min(900, 400 + (room.players.size - 2) * 100 + (room.shift - 1) * 70);
     room.endsAt = Date.now() + this.config.shiftSeconds * 1000; room.nextEvent = Date.now() + 35000;
     room.calls = 0; room.wins = 0; room.used = []; room.results = []; room.event = 'The shift is live. Make the imaginary economy worse.';
     for (const p of room.players.values()) { p.call = null; p.earned = 0; }
@@ -81,8 +83,15 @@ export class Game {
       busy:false, history:[{ who:'system', text:'Line connected. Introduce yourself using your own words.' }],
       preoccupation:pick(preoccupations), mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
       memory:[...(room.memories[npc.id] || [])], resolved:[], contributions:{}, pitches:[], ready:false, objection:npc.concerns[0].detail,
+      offerPrice:npc.value, declineStreak:0, loot:this.makeLoot(),
       computer: this.computer(), requestTimes: [] };
     room.calls++; this.broadcast(room);
+  }
+  makeLoot() {
+    const badge = Array.from({length:4},() => randomInt(1,10)).join('');
+    const fragments = Array.from({length:4},() => randomInt(1,10)).join('');
+    return { badge, fragments, ssdTaken:false, walletTaken:false, attempts:0, lockedUntil:0,
+      ssdPin:badge.split('').reverse().join(''), walletPin:fragments[2]+fragments[0]+fragments[3]+fragments[1] };
   }
   computer() {
     const sequence = ['ANTENNA', 'KAZOO', 'TOASTER'];
@@ -121,18 +130,23 @@ export class Game {
     const controller = new AbortController(); call.controller = controller;
     this.broadcast(room);
     const npc = NPCS.find(n => n.id === call.npcId);
+    const quoted = parseOffer(data.text.trim());
+    const proposedPrice = quoted ?? call.offerPrice;
     try {
-      const result = await this.dialogue.reply(npc, call, data.text.trim(), room.event, controller.signal);
+      const result = await this.dialogue.reply(npc, { ...call, offerPrice:proposedPrice }, data.text.trim(), room.event, controller.signal);
       // A late response cannot resurrect a call, pay out, or alter another shift.
       if (room.phase !== 'playing' || player.call !== call || Date.now() >= room.endsAt) return;
       const assessment = evaluatePersuasion(npc,call,data.text.trim(),result);
+      call.offerPrice = proposedPrice;
+      call.declineStreak = result.disposition === 'declines' ? call.declineStreak + 1 : 0;
       call.trust = clamp(call.trust + assessment.trust); call.susp = clamp(call.susp + assessment.suspicion); call.mode = result.mode;
-      call.ready = assessment.ready; call.objection = result.objection;
+      const bounds = priceRange(npc.value);
+      call.ready = assessment.ready && call.offerPrice >= bounds.min && call.offerPrice <= bounds.max; call.objection = result.objection;
       call.memory = [...new Set([...call.memory,...result.memory])].slice(-6); room.memories[npc.id] = call.memory;
       call.history.push({ who: 'bot', text: result.reply });
       call.history.push({ who:'system',text:assessment.repeated ? 'Repeated pitch: no rapport gained.' : `Rapport ${assessment.trust >= 0 ? '+' : ''}${assessment.trust}. Concerns addressed: ${call.resolved.length}/3.` });
       this.io.to(player.socketId).emit('npc:speak', { callId: call.id, npcId: npc.id, text: result.reply });
-      if (assessment.hangup || call.susp >= 90 || call.turns >= 12) this.close(room, player, false, 'Customer ended the call.');
+      if (assessment.hangup || (call.declineStreak >= 3 && result.wantsToEnd) || call.susp >= 90 || call.turns >= 12) this.close(room, player, false, 'Customer ended the call.');
     } catch (error) {
       if (room.phase === 'playing' && player.call === call) {
         call.turns--; call.ready = false; call.mode = 'AI unavailable • no replacement reply';
@@ -161,11 +175,42 @@ export class Game {
     }
     this.broadcast(room);
   }
+  purchase(socket, data) {
+    const { room } = this.current(socket);
+    const upgrade = UPGRADES.find(u => u.id === data.id);
+    if (!upgrade) throw new Error('Unknown software upgrade');
+    if (room.upgrades.includes(upgrade.id)) throw new Error('App already installed');
+    if (upgrade.id === 'wallet' && !room.upgrades.includes('ssd')) throw new Error('Install SSD Extractor first');
+    if (room.credits < upgrade.cost) throw new Error('Not enough fictional office credits');
+    room.credits -= upgrade.cost; room.upgrades.push(upgrade.id); this.broadcast(room);
+  }
+  extract(socket,data) {
+    const { room, player } = this.current(socket); this.playing(room);
+    if (!['ssd','wallet'].includes(data.kind) || !/^\\d{4}$/.test(String(data.answer ?? ''))) throw new Error('Enter a four-digit simulation PIN');
+    const target = room.players.get(data.playerId || player.id), call = target?.call;
+    if (!call) throw new Error('Open a customer line first');
+    if (call.busy || !call.computer.completed) throw new Error('Verify the customer computer first');
+    if (!room.upgrades.includes(data.kind)) throw new Error('Buy the required software in App Store');
+    const loot = call.loot;
+    if (Date.now() < loot.lockedUntil) throw new Error('Simulation locked. Try again shortly');
+    if (data.kind === 'wallet' && !loot.ssdTaken) throw new Error('Extract the simulated SSD first');
+    if (data.kind === 'ssd' ? loot.ssdTaken : loot.walletTaken) throw new Error('Already extracted from this customer');
+    if (String(data.answer) !== (data.kind === 'ssd' ? loot.ssdPin : loot.walletPin)) {
+      loot.attempts++; loot.lockedUntil = Date.now() + 3000;
+      throw new Error('Wrong simulation PIN. Wait three seconds to retry');
+    }
+    if (data.kind === 'ssd') loot.ssdTaken = true; else loot.walletTaken = true;
+    const amount = LOOT_REWARDS[data.kind]; room.earned += amount; room.credits += amount; player.earned += amount;
+    room.lootResults.unshift({ player:player.name,customer:NPCS.find(n => n.id === call.npcId).name,kind:data.kind,value:amount });
+    room.lootResults = room.lootResults.slice(0,20); this.broadcast(room);
+  }
   deal(socket) {
     const { room, player } = this.current(socket); this.playing(room);
     const call = player.call;
     if (!call || call.busy) throw new Error('Wait for the customer');
     if (call.trust < 65 || call.susp >= 60 || call.turns < 3 || !call.computer.completed || call.resolved.length < 2 || !call.ready) throw new Error('Need trust ≥65, suspicion <60, three turns, two answered concerns, customer agreement and verified computer');
+    const bounds = priceRange(NPCS.find(n => n.id === call.npcId).value);
+    if (call.offerPrice < bounds.min || call.offerPrice > bounds.max) throw new Error('Negotiated price outside the allowed fictional sale range');
     this.close(room, player, true, 'Sale approved'); this.broadcast(room);
   }
   close(room, player, win, reason) {
@@ -173,9 +218,9 @@ export class Game {
     call.controller?.abort();
     const npc = NPCS.find(n => n.id === call.npcId);
     if (win) {
-      room.earned += npc.value; room.wins++; player.earned += npc.value;
+      room.earned += call.offerPrice; room.credits += call.offerPrice; room.wins++; player.earned += call.offerPrice;
     }
-    room.used.push(npc.id); room.results.unshift({ name: npc.name, product: npc.offer, player: player.name, win, value: win ? npc.value : 0, reason });
+    room.used.push(npc.id); room.results.unshift({ name: npc.name, product: npc.offer, player: player.name, win, value: win ? call.offerPrice : 0, reason });
     room.results = room.results.slice(0, 30); player.call = null;
     if (room.used.length === NPCS.length) this.finish(room);
   }
@@ -232,11 +277,12 @@ export class Game {
     }
   }
   snapshot(room) {
-    return { code: room.code, host: room.host, phase: room.phase, shift: room.shift, earned: room.earned, quota: room.quota,
+    return { code: room.code, host: room.host, phase: room.phase, shift: room.shift, earned: room.earned, quota: room.quota, credits:room.credits, upgrades:room.upgrades, lootResults:room.lootResults,
       calls: room.calls, wins: room.wins, endsAt: room.endsAt || null, serverTime: Date.now(), used: room.used, results: room.results,
       event: room.event, aiEnabled: this.config.aiEnabled, usage: this.dialogue.ledger.snapshot(),
       players: [...room.players.values()].map(p => ({ id: p.id, name: p.name, connected: !!p.socketId, earned: p.earned,
-        call: p.call ? Object.fromEntries(Object.entries(p.call).filter(([k]) => !['controller', 'requestTimes', 'lastTurn'].includes(k))) : null })) };
+        call: p.call ? { ...Object.fromEntries(Object.entries(p.call).filter(([k]) => !['controller', 'requestTimes', 'lastTurn', 'loot'].includes(k))),
+          loot:Object.fromEntries(Object.entries(p.call.loot).filter(([k]) => !['ssdPin','walletPin'].includes(k))) } : null })) };
   }
   broadcast(room) { room.updatedAt = Date.now(); this.io.to(room.code).emit('room:state', this.snapshot(room)); }
 }
