@@ -1,0 +1,7 @@
+project_id = "cold-call-chaos"
+
+# Custom server-to-server bearer authentication is checked BEFORE all work.
+# This does not make the handler public; missing/wrong GAME_SERVER_TOKEN is rejected.
+[functions.npc-dialogue]
+verify_jwt = false
+entrypoint = "./functions/npc-dialogue/index.ts"

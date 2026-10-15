@@ -1,0 +1,27 @@
+# No disk or OpenAI credential on Render. Durable usage accounting is in Supabase.
+services:
+  - type: web
+    name: cold-call-chaos
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://focustap.github.io
+      - key: PRIVATE_GAME_PASSWORD
+        generateValue: true
+      - key: AI_ENABLED
+        value: "false"
+      - key: SUPABASE_URL
+        sync: false
+      - key: GAME_SERVER_TOKEN
+        sync: false
+      - key: MAX_ROOMS
+        value: "10"

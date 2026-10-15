@@ -1,0 +1,132 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { once } from 'node:events';
+import { io } from 'socket.io-client';
+import { createApp } from '../server/index.js';
+import { configFromEnv } from '../server/config.js';
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+const emit = (s, event, data = {}) => s.timeout(5000).emitWithAck(event, data);
+async function fixture(t, overrides = {}) {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cold-call-game-'));
+  const server = createApp({ ...configFromEnv({}), port: 0, dataDir, password: 'private-test', ...overrides });
+  server.http.listen(0, '127.0.0.1'); await once(server.http, 'listening');
+  const url = 'http://127.0.0.1:' + server.http.address().port, clients = [];
+  t.after(async () => { clients.forEach(s => s.disconnect()); await server.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+  async function client(auth = {}, extra = {}) {
+    const s = io(url, { forceNew: true, reconnection: false, auth: { password: 'private-test', ...auth }, ...extra }); clients.push(s);
+    await once(s, 'connect'); return s;
+  }
+  return { server, url, client, clients };
+}
+test('2–4 players, isolated rooms, host controls, locked lines, cooperative puzzles, synchronized payout', async t => {
+  const { client } = await fixture(t);
+  const [a, b, c, d, fifth] = await Promise.all(Array.from({ length: 5 }, () => client()));
+  const created = await emit(a, 'room:create', { name: 'Host' }); assert.equal(created.ok, true);
+  assert.equal((await emit(a, 'shift:start')).ok, false);
+  for (const [i, s] of [b, c, d].entries()) assert.equal((await emit(s, 'room:join', { name: 'Desk ' + i, code: created.code })).ok, true);
+  assert.equal((await emit(fifth, 'room:join', { name: 'Extra', code: created.code })).ok, false);
+  const other = await emit(fifth, 'room:create', { name: 'Other room' });
+  assert.equal((await emit(b, 'shift:start')).ok, false);
+  assert.equal((await emit(a, 'shift:start')).ok, true);
+  assert.equal((await emit(a, 'call:dial', { npcId: 'doug' })).ok, true);
+  assert.equal((await emit(b, 'call:dial', { npcId: 'doug' })).ok, false);
+  assert.equal((await emit(b, 'call:dial', { npcId: 'mildred' })).ok, true);
+  assert.equal((await emit(a, 'call:deal', { earned: 999999, trust: 100 })).ok, false);
+  const before = (await emit(a, 'room:sync')).state;
+  const pc = before.players.find(p => p.id === created.playerId).call.computer;
+  assert.equal((await emit(c,'computer:answer',{ playerId:created.playerId,answer:pc.sequence[0] })).ok,false);
+  await emit(c,'computer:command',{ playerId:created.playerId,command:'scan' });
+  await emit(c,'computer:command',{ playerId:created.playerId,command:'repair ' + pc.fault });
+  for (const answer of pc.sequence) assert.equal((await emit(c, 'computer:answer', { playerId: created.playerId, answer })).ok, true);
+  assert.equal((await emit(c, 'computer:answer', { playerId: created.playerId, answer: pc.invoice })).ok, true);
+  assert.equal((await emit(c, 'computer:answer', { playerId: created.playerId, answer: pc.invoice })).ok, false);
+  assert.equal((await emit(a, 'call:talk', { text: 'The price is forty imaginary dollars with no recurring bill.' })).ok, true);
+  assert.equal((await emit(a, 'call:talk', { text: 'This should be rate limited.' })).ok, false);
+  await pause(1250);
+  assert.equal((await emit(a, 'call:talk', { text: 'The antenna detects squirrels near the seven lawn flamingos.' })).ok, true);
+  await pause(1250);
+  assert.equal((await emit(a,'call:talk',{ text:'We can test this fictional device, and I cannot guarantee real results.' })).ok,true);
+  assert.equal((await emit(a, 'call:deal')).ok, true);
+  assert.equal((await emit(a, 'call:deal')).ok, false);
+  const shared = (await emit(b, 'room:sync')).state;
+  assert.equal(shared.earned, 400); assert.equal(shared.wins, 1); assert.equal(shared.calls, 2);
+  assert.equal(shared.players.length, 4); assert.equal(shared.endsAt, before.endsAt);
+  assert.equal(JSON.stringify(shared).includes(created.token), false);
+  const isolated = (await emit(fifth, 'room:sync')).state;
+  assert.equal(isolated.code, other.code); assert.equal(isolated.earned, 0); assert.equal(isolated.phase, 'lobby');
+});
+test('session resumes within grace, rejects hijack, transfers host after expiry', async t => {
+  const { client, server } = await fixture(t);
+  const a = await client(), b = await client();
+  const host = await emit(a, 'room:create', { name: 'Host' });
+  const guest = await emit(b, 'room:join', { name: 'Guest', code: host.code });
+  const attacker = io(a.io.uri, { reconnection: false, auth: { password: 'private-test', token: host.token } });
+  const [error] = await once(attacker, 'connect_error'); assert.match(error.message, /already connected/); attacker.disconnect();
+  a.disconnect(); await pause(30);
+  const resumed = await client({ token: host.token });
+  assert.equal((await emit(resumed, 'room:sync')).playerId, host.playerId);
+  resumed.disconnect(); await pause(30);
+  server.game.tick(Date.now() + 46000);
+  const state = (await emit(b, 'room:sync')).state;
+  assert.equal(state.host, guest.playerId); assert.equal(state.players.length, 1);
+});
+test('password and WebSocket origin checks; server files and secrets never served', async t => {
+  const { url, clients } = await fixture(t);
+  for (const options of [ { auth: { password: 'wrong' } }, { auth: { password: 'private-test' }, transports: ['websocket'], extraHeaders: { Origin: 'https://evil.example' } } ]) {
+    const socket = io(url, { reconnection: false, timeout: 1500, ...options }); clients.push(socket);
+    const [error] = await once(socket, 'connect_error'); assert.ok(error); socket.disconnect();
+  }
+  for (const p of ['/.env', '/server/index.js', '/data/usage.json', '/package.json']) assert.equal((await fetch(url + p)).status, 404);
+  assert.equal((await fetch(url + '/health')).status, 200);
+  assert.equal((await fetch(url + '/assets/app.js')).status, 200);
+});
+test('late AI results cannot pay out or alter a completed shift', async t => {
+  const { client, server } = await fixture(t);
+  const a = await client(), b = await client();
+  const host = await emit(a, 'room:create', { name: 'Host' });
+  await emit(b, 'room:join', { name: 'Guest', code: host.code }); await emit(a, 'shift:start');
+  await emit(a, 'call:dial', { npcId: 'doug' });
+  let resolve;
+  server.game.dialogue.reply = () => new Promise(r => { resolve = r; });
+  const turn = emit(a, 'call:talk', { text: 'hello strange fictional friend' });
+  await pause(30); await emit(a, 'shift:end');
+  resolve({ reply: 'Deal!', trustDelta: 100, suspicionDelta: -100, mode: 'test', hangup: false }); await turn;
+  const state = (await emit(b, 'room:sync')).state;
+  assert.equal(state.phase, 'finished'); assert.equal(state.earned, 0); assert.equal(state.players[0].call, null);
+  await emit(a, 'shift:start'); assert.equal((await emit(b, 'room:sync')).state.shift, 2);
+});
+
+test('random events synchronize and the server clock ends expired calls', async t => {
+  const { client, server } = await fixture(t);
+  const a = await client(), b = await client();
+  const host = await emit(a, 'room:create', { name: 'Host' });
+  await emit(b, 'room:join', { name: 'Guest', code: host.code }); await emit(a, 'shift:start');
+  await emit(a, 'call:dial', { npcId: 'doug' });
+  const internal = server.game.rooms.get(host.code), initial = internal.event;
+  internal.nextEvent = Date.now() - 1; server.game.tick();
+  const first = (await emit(a, 'room:sync')).state, second = (await emit(b, 'room:sync')).state;
+  assert.notEqual(first.event, initial); assert.equal(first.event, second.event);
+  assert.equal(first.quota, second.quota); assert.equal(first.earned, second.earned);
+  internal.endsAt = Date.now() - 1;
+  assert.equal((await emit(a, 'call:talk', { text: 'A late pitch should not get through.' })).ok, false);
+  assert.equal((await emit(b, 'room:sync')).state.phase, 'finished');
+  assert.equal((await emit(a, 'room:sync')).state.players[0].call, null);
+});
+
+test('rejected AI turn grants no trust, emits no canned reply, and shows an explicit error',async t => {
+  const { client,server } = await fixture(t);
+  const a = await client(),b = await client();
+  const host = await emit(a,'room:create',{ name:'Host' });
+  await emit(b,'room:join',{ name:'Guest',code:host.code }); await emit(a,'shift:start');
+  await emit(a,'call:dial',{ npcId:'doug' });
+  const speech = []; a.on('npc:speak',m => speech.push(m));
+  server.game.dialogue.reply = async () => { throw new Error('Daily AI budget reached. No model reply was generated.'); };
+  const reply = await emit(a,'call:talk',{ text:'Please explain the imaginary price.' });
+  assert.equal(reply.ok,false); assert.match(reply.error,/budget/);
+  const state = (await emit(a,'room:sync')).state,c = state.players[0].call;
+  assert.equal(c.trust,34); assert.equal(c.turns,0); assert.equal(state.earned,0); assert.equal(speech.length,0);
+  assert.match(c.mode,/AI unavailable/); assert.equal(c.history.some(m => m.who === 'bot'),false);
+});
