@@ -1,0 +1,28 @@
+{
+  "name": "cold-call-chaos",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test",
+    "check": "node --check server/index.js && node --check assets/app.js",
+    "vendor": "node scripts/vendor.js",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "openai": "^6.0.0",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "socket.io-client": "^4.8.1"
+  }
+}

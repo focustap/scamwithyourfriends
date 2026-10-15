@@ -1,0 +1,38 @@
+# Deploying this blueprint creates a PAID service and disk. AI stays off initially.
+services:
+  - type: web
+    name: cold-call-chaos
+    runtime: node
+    plan: starter
+    numInstances: 1
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    disk:
+      name: cold-call-usage
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://focustap.github.io
+      - key: PRIVATE_GAME_PASSWORD
+        generateValue: true
+      - key: AI_ENABLED
+        value: "false"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DATA_DIR
+        value: /var/data
+      - key: DAILY_TOKEN_LIMIT
+        value: "50000"
+      - key: DAILY_REQUEST_LIMIT
+        value: "100"
+      - key: MAX_OUTPUT_TOKENS
+        value: "220"
+      - key: MAX_ROOMS
+        value: "10"
