@@ -48,9 +48,9 @@ function validate(body) {
     || ![c.trust,c.suspicion].every(n => Number.isInteger(n) && n >= 0 && n <= 100)
     || !text(c.event,200) || !text(c.preoccupation,200)
     || (c.resolved !== undefined && (!Array.isArray(c.resolved) || c.resolved.length > 3 || new Set(c.resolved).size !== c.resolved.length
-      || !c.resolved.every(id => ['cost','usefulness','credibility'].includes(id)))))
+      || !c.resolved.every(id => ['cost','usefulness','credibility'].includes(id))))
     || !Number.isInteger(c.listedPrice) || c.listedPrice < 1 || c.listedPrice > 2000
-    || !Number.isInteger(c.offerPrice) || c.offerPrice < 1 || c.offerPrice > 9999 throw new Failure('INVALID_CONTEXT', 400);
+    || !Number.isInteger(c.offerPrice) || c.offerPrice < 1 || c.offerPrice > 9999) throw new Failure('INVALID_CONTEXT', 400);
   // Only the server's canonical bounded fields enter the prompt. No raw extra fields.
   return { requestId: body.requestId, profile: Object.fromEntries(['name','age','occupation','background','personality','humor','speechStyle','offer','concerns'].map(k => [k,p[k]])),
     text: body.text.trim(), history: body.history.map(m => ({ role:m.role, content:m.content })), memory: body.memory,
