@@ -18,6 +18,11 @@ async function speechMocks(page) {
     };
   });
 }
+test('Pages preview uses the local Socket.IO server, never production Render', async ({ page }) => {
+  await page.goto('http://127.0.0.1:4173/scamwithyourfriends/');
+  await expect(page.locator('#backendUrl')).toHaveValue('http://127.0.0.1:3000');
+});
+
 test('two browsers play a voice call, help with a computer, share earnings and reconnect', async ({ browser }) => {
   const ctxA = await browser.newContext(), ctxB = await browser.newContext();
   const a = await ctxA.newPage(), b = await ctxB.newPage();
