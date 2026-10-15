@@ -8,7 +8,7 @@ if (!globalThis.crypto) globalThis.crypto = webcrypto;
 const token = 'test-server-token-with-at-least-32-characters';
 const usage = { date:'2026-10-15',mode:'live',enabled:true,liveAllowed:true,tokens:100,requests:1,tokenLimit:50000,requestLimit:10,outputLimit:320,blocked:false };
 const assessment = { reply:'Seven flamingos? Which one is in charge of security?',intent:'discovery',concernId:null,evidence:'',quality:1,objection:'What would this cost?',disposition:'considering',wantsToEnd:false,memory:['Doug has seven flamingos.'] };
-const payload = () => ({ action:'dialogue',requestId:randomUUID(),profile:structuredClone(NPCS[1]),text:'My antenna watches the lawn, what worries you?',history:[{ role:'assistant',content:'Who is this?' }],memory:['Earl borrowed the rake.'],context:{ trust:34,suspicion:17,event:'Office open',preoccupation:'a goose stole the driveway' } });
+const payload = () => ({ action:'dialogue',requestId:randomUUID(),profile:structuredClone(NPCS[1]),text:'My antenna watches the lawn, what worries you?',history:[{ role:'assistant',content:'Who is this?' }],memory:['Earl borrowed the rake.'],context:{ trust:34,suspicion:17,event:'Office open',preoccupation:'a goose stole the driveway',resolved:['cost'] } });
 function setup(options = {}) {
   const calls = [], env = { GAME_SERVER_TOKEN:token,SUPABASE_URL:'https://test.supabase.co',SUPABASE_SECRET_KEYS:JSON.stringify({ default:'sb_secret_test-only' }),OPENAI_API_KEY:'fake-key-test-only' };
   const handler = createHandler({ env:n => env[n], fetcher:async (url,init) => {
@@ -43,7 +43,7 @@ test('Edge calls Responses only after durable reservation and settles reported u
   const result = await response.json(); assert.equal(result.mode,'GPT-5.6 Luna'); assert.equal(result.reply,assessment.reply);
   assert.deepEqual(f.calls.map(c => c.url.split('/').at(-1)),['npc_usage_status','npc_reserve','responses','npc_settle']);
   const provider = f.calls[2].body; assert.equal(provider.model,'gpt-5.6-luna'); assert.equal(provider.store,false); assert.equal(provider.reasoning.effort,'none');
-  assert.ok(provider.instructions.includes(p.profile.background)); assert.ok(provider.instructions.includes(p.memory[0]));
+  assert.ok(provider.instructions.includes(p.profile.background)); assert.ok(provider.instructions.includes(p.memory[0])); assert.ok(provider.instructions.includes('"resolved":["cost"]'));
   assert.equal(provider.input.at(-1).content,p.text); assert.equal(provider.input.length,2);
   assert.ok(f.calls[1].body.p_tokens > provider.max_output_tokens); assert.equal(f.calls[1].body.p_payload_hash.length,64);
   assert.equal(f.calls[3].body.p_total,1020);

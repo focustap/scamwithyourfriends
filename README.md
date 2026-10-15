@@ -23,7 +23,7 @@ The migration starts disabled, in mock mode, with live calls disallowed and one 
 
 ## Gameplay and desktop
 
-Every NPC has a name, age, occupation, background, personality, humor, speech style, three personal concerns, and bounded memory. Profiles and the last six messages plus the current words go to the model on each turn. Memory stays with the room across shifts and resets when the server/room ends.
+Every NPC has a name, age, occupation, background, personality, humor, speech style, three personal concerns, and bounded memory. Profiles, the last ten messages, and the current words go to the model on each turn. The server also provides the IDs of previously credited concerns so the NPC knows what remains unresolved. The NPC still judges each statement, keeps memories, and decides whether to agree; the server independently validates the assessment before scoring. Memory stays with the room across shifts and resets when the server/room ends.
 
 Trust requires a grounded answer to a concern: first relevant contribution +12, a distinct follow-up +4, then no more. Repeated pitches earn nothing and increase suspicion. Discovery can add +3 once. A repaired computer adds +7 once. Sales require trust >=65, suspicion <60, three successful turns, two answered concerns, customer agreement, and a verified computer. The server validates scoring, hangups, puzzles, money and duplicate rewards.
 

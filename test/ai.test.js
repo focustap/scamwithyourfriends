@@ -6,7 +6,7 @@ import { NPCS } from '../assets/npcs.js';
 import { evaluatePersuasion } from '../server/persuasion.js';
 const words = 'The price is forty imaginary dollars with no recurring bill.';
 const answer = (extra = {}) => ({ reply:'Does that include the flamingos?',intent:'explanation',concernId:'cost',evidence:words,quality:2,objection:'What does it do?',disposition:'considering',wantsToEnd:false,memory:[],mode:'GPT-5.6 Luna',...extra });
-const state = () => ({ trust:34,susp:17,turns:1,preoccupation:'goose',history:[{ who:'system',text:'Connected' },{ who:'me',text:words }],memory:[] });
+const state = () => ({ trust:34,susp:17,turns:1,preoccupation:'goose',history:[{ who:'system',text:'Connected' },{ who:'me',text:words }],memory:[],resolved:[] });
 test('Node calls only the Supabase function, sends no OpenAI key and never retries failures', async () => {
   let count = 0, sent;
   const d = new Dialogue({ aiEnabled:true,functionUrl:'https://test.supabase.co/functions/v1/npc-dialogue',gameServerToken:'private-test' },async (url,init) => {
@@ -16,6 +16,18 @@ test('Node calls only the Supabase function, sends no OpenAI key and never retri
   assert.equal(count,1); assert.ok(sent.url.endsWith('npc-dialogue')); assert.equal(sent.body.profile.age,48);
   assert.equal(sent.body.text,words); assert.equal(sent.body.history.length,0); assert.equal(sent.body.model,undefined);
   await assert.rejects(d.reply(NPCS[1],state(),words,'Office open'),/busy/); assert.equal(count,1);
+});
+test('Node preserves ten latest messages and passes credited concerns for NPC judgment',async () => {
+  let sent;
+  const d = new Dialogue({ aiEnabled:true,functionUrl:'https://test.supabase.co/functions/v1/npc-dialogue',gameServerToken:'private-test' },async (_url,init) => {
+    sent = JSON.parse(init.body);
+    return Response.json({ error:'DAILY_BUDGET' },{ status:429 });
+  });
+  const old = Array.from({length:13},(_,i)=>({ who:i%2 ? 'bot':'me',text:'message '+i }));
+  await assert.rejects(d.reply(NPCS[1],{ ...state(),history:[{ who:'system',text:'Line connected' },...old,{ who:'me',text:words }],resolved:['cost'] },words,'Office open'),/budget/);
+  assert.equal(sent.history.length,10);
+  assert.equal(sent.history[0].content,'message 3');
+  assert.deepEqual(sent.context.resolved,['cost']);
 });
 test('practice mode is explicit and cannot accidentally make a model call', async () => {
   const d = new Dialogue({ aiEnabled:false },async () => { throw new Error('network forbidden'); });
