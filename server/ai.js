@@ -49,7 +49,7 @@ export class Dialogue {
     try {
       const result = await this.invoke({ action:'dialogue', requestId:randomUUID(), profile:npc, text,
         history:call.history.filter(m => m.who !== 'system').slice(0,-1).slice(-10).map(m => ({ role:m.who === 'me' ? 'user' : 'assistant',content:m.text.slice(0,600) })),
-        memory:(call.memory || []).slice(-6), context:{ trust:call.trust, suspicion:call.susp, event:(event || 'Office open').slice(0,200), preoccupation:call.preoccupation.slice(0,200), resolved:(call.resolved || []).filter(id => ['cost','usefulness','credibility'].includes(id)).slice(0,3), listedPrice:npc.value, offerPrice:call.offerPrice } }, signal);
+        memory:(call.memory || []).slice(-6), context:{ trust:call.trust, suspicion:call.susp, event:(event || 'Office open').slice(0,200), preoccupation:call.preoccupation.slice(0,200), resolved:(call.resolved || []).filter(id => ['cost','usefulness','credibility'].includes(id)).slice(0,3), listedPrice:npc.value, offerPrice:Number.isInteger(call.offerPrice) ? call.offerPrice : npc.value } }, signal);
       if (!['GPT-5.6 Luna','Supabase mock • no model call'].includes(result.mode)
         || (result.mode === 'GPT-5.6 Luna' && result.usage.mode !== 'live')
         || (result.mode.includes('mock') && result.usage.mode !== 'mock')) throw new DialogueError('Unexpected AI mode.');

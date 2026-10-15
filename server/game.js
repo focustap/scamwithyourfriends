@@ -186,7 +186,7 @@ export class Game {
   }
   extract(socket,data) {
     const { room, player } = this.current(socket); this.playing(room);
-    if (!['ssd','wallet'].includes(data.kind) || !/^\\d{4}$/.test(String(data.answer ?? ''))) throw new Error('Enter a four-digit simulation PIN');
+    if (!['ssd','wallet'].includes(data.kind) || !/^\d{4}$/.test(String(data.answer ?? ''))) throw new Error('Enter a four-digit simulation PIN');
     const target = room.players.get(data.playerId || player.id), call = target?.call;
     if (!call) throw new Error('Open a customer line first');
     if (call.busy || !call.computer.completed) throw new Error('Verify the customer computer first');
