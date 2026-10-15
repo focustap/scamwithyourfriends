@@ -57,6 +57,7 @@ export function createApp(config = configFromEnv(), overrides = {}) {
       'call:dial': data => game.dial(socket, data), 'call:talk': data => game.talk(socket, data),
       'call:hangup': () => game.hangup(socket), 'call:deal': () => game.deal(socket), 'computer:answer': data => game.puzzle(socket, data),
       'computer:command': data => game.command(socket,data),
+      'store:buy':data => game.purchase(socket,data), 'loot:extract':data => game.extract(socket,data),
     };
     let recent = [];
     for (const [event, handler] of Object.entries(handlers)) socket.on(event, async (data, ack) => {

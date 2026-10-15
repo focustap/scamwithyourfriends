@@ -59,3 +59,17 @@ h1 em{font-style:normal;color:var(--blue);text-shadow:0 0 55px #61d8ff42}
 @media(max-width:1400px) and (min-width:901px){.operationsWindow{left:auto!important;right:12px;width:380px}.osWindow:not(.operationsWindow){width:min(650px,calc(100% - 35px))}}
 @media(max-width:900px){.desktop{overflow:auto;padding:12px 12px 50px}.deskgrid{height:auto;min-height:600px;display:flex;flex-direction:column;gap:15px}.osWindow,.operationsWindow{position:relative!important;left:auto!important;top:auto!important;right:auto!important;width:100%!important;height:auto;min-height:320px;max-height:85vh;resize:none}.osWindow .panelbody{height:auto;max-height:calc(85vh - 51px)}.taskbar{position:sticky;bottom:0;margin:20px -12px -50px}.osWindow.maximized{width:100%!important;height:auto!important}.sidebar{overflow-x:auto;overflow-y:hidden}.windowControls button{width:30px;height:30px}}
 .osWindow{background:#0b1623}
+
+/* Windowed desktop shortcuts and Start launcher */
+.desktopShortcuts{position:absolute;left:18px;top:14px;z-index:1;display:grid;grid-template-columns:repeat(2,90px);grid-auto-rows:92px;gap:8px;pointer-events:none}
+.desktopShortcut{pointer-events:auto;border:1px solid transparent;border-radius:9px;background:transparent;color:#d6f0f5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-shadow:0 1px 4px #071320;padding:5px;cursor:pointer}
+.desktopShortcut span{background:linear-gradient(145deg,#32627d,#1a3752);border:1px solid #5f859b;box-shadow:0 4px 13px #0007;border-radius:12px;width:45px;height:45px;display:grid;place-items:center;font-size:24px;color:#b6fff1}
+.desktopShortcut small{font-size:9px;font-weight:800;line-height:1.15}
+.desktopShortcut:hover,.desktopShortcut:focus-visible{background:#416b815e;border-color:#7d9bb7}
+.startButton{flex-shrink:0;background:#3a8676;border:1px solid #80b5a9;border-radius:7px;color:#061f23;font-weight:900;padding:8px 14px;cursor:pointer}
+.startMenu{position:absolute;bottom:51px;left:8px;z-index:12000;width:min(285px,calc(100% - 16px));max-height:70vh;overflow:auto;background:#152b40;border:1px solid #60819a;border-radius:12px;box-shadow:0 15px 36px #000a;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.startMenu[hidden]{display:none}.startMenu>b,.startMenu>small{grid-column:1/-1}.startMenu>b{color:#9df7cf}.startMenu>small{font-size:10px;color:#8daabb;margin-bottom:8px}
+.startMenu button{color:#e1edf8;background:#233d54;border:1px solid #34576b;border-radius:6px;padding:12px 7px;font-size:11px;text-align:left;cursor:pointer}.startMenu button:hover{background:#315772}
+.storeCard{background:#132536;border:1px solid #395971;border-radius:11px;padding:15px;display:grid;gap:12px;margin:12px 0;font-size:13px;line-height:1.55}
+.storeCard .sectiontitle{margin-bottom:7px}.storeCard .actionbtn{justify-self:start}.storeCard p{margin:5px 0 8px}.storeCard input{min-width:0}
+@media(max-width:900px){.desktopShortcuts{position:relative;left:0;top:0;grid-template-columns:repeat(4,minmax(58px,1fr));width:100%;grid-auto-rows:78px}.desktopShortcut span{width:34px;height:34px;font-size:19px}.desktopShortcut small{font-size:8px}.startMenu{position:fixed;bottom:55px;left:12px}}

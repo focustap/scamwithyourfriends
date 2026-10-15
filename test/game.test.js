@@ -52,7 +52,7 @@ test('2–4 players, isolated rooms, host controls, locked lines, cooperative pu
   assert.equal((await emit(a, 'call:deal')).ok, true);
   assert.equal((await emit(a, 'call:deal')).ok, false);
   const shared = (await emit(b, 'room:sync')).state;
-  assert.equal(shared.earned, 400); assert.equal(shared.wins, 1); assert.equal(shared.calls, 2);
+  assert.equal(shared.earned, 140); assert.equal(shared.wins, 1); assert.equal(shared.calls, 2);
   assert.equal(shared.players.length, 4); assert.equal(shared.endsAt, before.endsAt);
   assert.equal(JSON.stringify(shared).includes(created.token), false);
   const isolated = (await emit(fifth, 'room:sync')).state;
@@ -129,4 +129,59 @@ test('rejected AI turn grants no trust, emits no canned reply, and shows an expl
   const state = (await emit(a,'room:sync')).state,c = state.players[0].call;
   assert.equal(c.trust,34); assert.equal(c.turns,0); assert.equal(state.earned,0); assert.equal(speech.length,0);
   assert.match(c.mode,/AI unavailable/); assert.equal(c.history.some(m => m.who === 'bot'),false);
+});
+
+test('price quotations are contextual and bounded by fictional deal rules', async () => {
+  const { parseOffer, priceRange } = await import('../server/pricing.js');
+  assert.equal(parseOffer('100 dollars?'),100);
+  assert.equal(parseOffer('What if I make it $115?'),115);
+  assert.equal(parseOffer('I can do 90 bucks'),90);
+  assert.equal(parseOffer('I have 12 flamingos'),null);
+  assert.equal(parseOffer('300?'),300);
+  assert.deepEqual(priceRange(150),{ min:75,max:300 });
+});
+test('shared upgrades and fictional SSD and wallet rewards are verified by server',async t => {
+  const { client,server } = await fixture(t);
+  const a=await client(), b=await client(), host=await emit(a,'room:create',{ name:'Agent' });
+  await emit(b,'room:join',{ name:'Tech',code:host.code });
+  const room=server.game.rooms.get(host.code);
+  room.credits=250; await emit(a,'shift:start');
+  assert.equal((await emit(a,'store:buy',{ id:'wallet' })).ok,false);
+  assert.equal((await emit(a,'store:buy',{ id:'ssd' })).ok,true);
+  assert.equal((await emit(b,'store:buy',{ id:'ssd' })).ok,false);
+  assert.equal((await emit(b,'store:buy',{ id:'wallet' })).ok,true);
+  assert.equal(room.credits,10);
+  await emit(a,'call:dial',{ npcId:'mildred' });
+  const call=room.players.get(host.playerId).call;
+  const ssd=call.loot.ssdPin,wallet=call.loot.walletPin;
+  let state=(await emit(a,'room:sync')).state;
+  assert.equal(JSON.stringify(state).includes('"ssdPin"'),false);
+  assert.equal((await emit(b,'loot:extract',{ playerId:host.playerId,kind:'ssd',answer:ssd })).ok,false);
+  call.computer.completed=true;
+  assert.equal((await emit(b,'loot:extract',{ playerId:host.playerId,kind:'wallet',answer:wallet })).ok,false);
+  assert.equal((await emit(b,'loot:extract',{ playerId:host.playerId,kind:'ssd',answer:ssd })).ok,true);
+  assert.equal((await emit(b,'loot:extract',{ playerId:host.playerId,kind:'ssd',answer:ssd })).ok,false);
+  assert.equal((await emit(b,'loot:extract',{ playerId:host.playerId,kind:'wallet',answer:wallet })).ok,true);
+  state=(await emit(a,'room:sync')).state;
+  assert.equal(state.earned,105);
+  assert.equal(state.credits,115);
+  assert.equal(state.lootResults.length,2);
+});
+
+test('negotiated sale pays the quoted price, not the NPC sticker price',async t => {
+  const { client,server } = await fixture(t);
+  const a=await client(),b=await client(),host=await emit(a,'room:create',{name:'Agent'});
+  await emit(b,'room:join',{ name:'Assistant',code:host.code });
+  await emit(a,'shift:start');
+  await emit(a,'call:dial',{npcId:'mildred'});
+  const call=server.game.rooms.get(host.code).players.get(host.playerId).call;
+  call.trust=80;call.susp=0;call.turns=3;call.resolved=['cost','usefulness'];call.ready=true;call.computer.completed=true;
+  call.offerPrice=1;
+  assert.equal((await emit(a,'call:deal')).ok,false);
+  call.offerPrice=100;
+  assert.equal((await emit(a,'call:deal')).ok,true);
+  const state=(await emit(a,'room:sync')).state;
+  assert.equal(state.earned,100);
+  assert.equal(state.credits,100);
+  assert.equal(state.results[0].value,100);
 });

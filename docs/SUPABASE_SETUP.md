@@ -154,3 +154,8 @@ Service-role secrets bypass RLS and must remain in Supabase's runtime. This app'
 ## Token-efficient dialogue
 
 The live model is **GPT-5.6 Luna**, the modern nano-tier model. The Edge prompt asks for short NPC replies (35 words maximum), a compact assessment and at most two concrete memory facts. The Node server sends the previous ten non-system chat messages, bounded durable memory, the IDs of concerns previously credited by the server and the current message. A new model request still resends these fields; memory is stored in the room on Render, not inside OpenAI. Model maximum output follows the SQL `output_tokens` setting (default 320), avoiding truncation of the full structured judgment. Both request and token budgets continue to apply. This reduces average token use but does not guarantee a particular cost, token count, or complimentary API allowance.
+
+
+## Price negotiation and the upgraded office
+
+The matching Render server sends validated `listedPrice` and `offerPrice` values in the protected dialogue context. Update the server and generated Dashboard bundle together. The model treats the listed price as a reasonable in-game baseline, responds more favorably to genuine discounts, can resist markups, and must still genuinely agree before a sale. The backend alone determines score and payout, and cannot accept arbitrary client-supplied sale amounts. The fictional SSD and wallet minigames are local server game logic and make no OpenAI requests.

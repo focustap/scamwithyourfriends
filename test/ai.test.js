@@ -6,7 +6,7 @@ import { NPCS } from '../assets/npcs.js';
 import { evaluatePersuasion } from '../server/persuasion.js';
 const words = 'The price is forty imaginary dollars with no recurring bill.';
 const answer = (extra = {}) => ({ reply:'Does that include the flamingos?',intent:'explanation',concernId:'cost',evidence:words,quality:2,objection:'What does it do?',disposition:'considering',wantsToEnd:false,memory:[],mode:'GPT-5.6 Luna',...extra });
-const state = () => ({ trust:34,susp:17,turns:1,preoccupation:'goose',history:[{ who:'system',text:'Connected' },{ who:'me',text:words }],memory:[],resolved:[] });
+const state = () => ({ trust:34,susp:17,turns:1,preoccupation:'goose',history:[{ who:'system',text:'Connected' },{ who:'me',text:words }],memory:[],resolved:[],offerPrice:140 });
 test('Node calls only the Supabase function, sends no OpenAI key and never retries failures', async () => {
   let count = 0, sent;
   const d = new Dialogue({ aiEnabled:true,functionUrl:'https://test.supabase.co/functions/v1/npc-dialogue',gameServerToken:'private-test' },async (url,init) => {
