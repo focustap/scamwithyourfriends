@@ -37,13 +37,18 @@ test('2–4 players, isolated rooms, host controls, locked lines, cooperative pu
   assert.equal((await emit(a, 'call:deal', { earned: 999999, trust: 100 })).ok, false);
   const before = (await emit(a, 'room:sync')).state;
   const pc = before.players.find(p => p.id === created.playerId).call.computer;
+  assert.equal((await emit(c,'computer:answer',{ playerId:created.playerId,answer:pc.sequence[0] })).ok,false);
+  await emit(c,'computer:command',{ playerId:created.playerId,command:'scan' });
+  await emit(c,'computer:command',{ playerId:created.playerId,command:'repair ' + pc.fault });
   for (const answer of pc.sequence) assert.equal((await emit(c, 'computer:answer', { playerId: created.playerId, answer })).ok, true);
   assert.equal((await emit(c, 'computer:answer', { playerId: created.playerId, answer: pc.invoice })).ok, true);
   assert.equal((await emit(c, 'computer:answer', { playerId: created.playerId, answer: pc.invoice })).ok, false);
-  assert.equal((await emit(a, 'call:talk', { text: 'Please explain your flamingo security priorities.' })).ok, true);
+  assert.equal((await emit(a, 'call:talk', { text: 'The price is forty imaginary dollars with no recurring bill.' })).ok, true);
   assert.equal((await emit(a, 'call:talk', { text: 'This should be rate limited.' })).ok, false);
   await pause(1250);
-  assert.equal((await emit(a, 'call:talk', { text: 'I appreciate that. The imaginary antenna protects the whole lawn.' })).ok, true);
+  assert.equal((await emit(a, 'call:talk', { text: 'The antenna detects squirrels near the seven lawn flamingos.' })).ok, true);
+  await pause(1250);
+  assert.equal((await emit(a,'call:talk',{ text:'We can test this fictional device, and I cannot guarantee real results.' })).ok,true);
   assert.equal((await emit(a, 'call:deal')).ok, true);
   assert.equal((await emit(a, 'call:deal')).ok, false);
   const shared = (await emit(b, 'room:sync')).state;
@@ -109,4 +114,19 @@ test('random events synchronize and the server clock ends expired calls', async 
   assert.equal((await emit(a, 'call:talk', { text: 'A late pitch should not get through.' })).ok, false);
   assert.equal((await emit(b, 'room:sync')).state.phase, 'finished');
   assert.equal((await emit(a, 'room:sync')).state.players[0].call, null);
+});
+
+test('rejected AI turn grants no trust, emits no canned reply, and shows an explicit error',async t => {
+  const { client,server } = await fixture(t);
+  const a = await client(),b = await client();
+  const host = await emit(a,'room:create',{ name:'Host' });
+  await emit(b,'room:join',{ name:'Guest',code:host.code }); await emit(a,'shift:start');
+  await emit(a,'call:dial',{ npcId:'doug' });
+  const speech = []; a.on('npc:speak',m => speech.push(m));
+  server.game.dialogue.reply = async () => { throw new Error('Daily AI budget reached. No model reply was generated.'); };
+  const reply = await emit(a,'call:talk',{ text:'Please explain the imaginary price.' });
+  assert.equal(reply.ok,false); assert.match(reply.error,/budget/);
+  const state = (await emit(a,'room:sync')).state,c = state.players[0].call;
+  assert.equal(c.trust,34); assert.equal(c.turns,0); assert.equal(state.earned,0); assert.equal(speech.length,0);
+  assert.match(c.mode,/AI unavailable/); assert.equal(c.history.some(m => m.who === 'bot'),false);
 });

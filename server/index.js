@@ -7,7 +7,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
 import { configFromEnv } from './config.js';
-import { UsageLedger } from './usage.js';
 import { Dialogue } from './ai.js';
 import { Game } from './game.js';
 
@@ -15,7 +14,8 @@ export function createApp(config = configFromEnv(), overrides = {}) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const app = express(); app.disable('x-powered-by');
   app.use(helmet({ contentSecurityPolicy: { directives: {
-    defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"],
+    defaultSrc: ["'self'"], scriptSrc: ["'self'",'https://cdn.jsdelivr.net',"'wasm-unsafe-eval'"], styleSrc: ["'self'", "'unsafe-inline'"],
+    workerSrc:["'self'",'blob:'],
     connectSrc: ["'self'", ...config.origins, 'https:', 'wss:', ...(config.production ? [] : ['http:', 'ws:'])],
     upgradeInsecureRequests: config.production ? [] : null,
   } } }));
@@ -28,9 +28,10 @@ export function createApp(config = configFromEnv(), overrides = {}) {
   const io = new Server(http, { maxHttpBufferSize: 8192, cors: { origin: config.origins, methods: ['GET', 'POST'] },
     allowRequest: (req, done) => done(null, allowed(req.headers.origin)),
   });
-  const ledger = overrides.ledger || new UsageLedger(config);
-  const dialogue = overrides.dialogue || new Dialogue(config, ledger);
+  const dialogue = overrides.dialogue || new Dialogue(config, overrides.fetcher);
+  const ledger = dialogue.ledger;
   const game = new Game(io, config, dialogue);
+  void dialogue.refreshUsage();
   const attempts = new Map();
   io.use((socket, next) => {
     // Remote address cannot be spoofed via X-Forwarded-For. Render proxy sharing
@@ -55,6 +56,7 @@ export function createApp(config = configFromEnv(), overrides = {}) {
       'room:leave': () => game.leave(socket), 'shift:start': () => game.start(socket), 'shift:end': () => game.end(socket),
       'call:dial': data => game.dial(socket, data), 'call:talk': data => game.talk(socket, data),
       'call:hangup': () => game.hangup(socket), 'call:deal': () => game.deal(socket), 'computer:answer': data => game.puzzle(socket, data),
+      'computer:command': data => game.command(socket,data),
     };
     let recent = [];
     for (const [event, handler] of Object.entries(handlers)) socket.on(event, async (data, ack) => {
@@ -74,8 +76,10 @@ export function createApp(config = configFromEnv(), overrides = {}) {
     });
     socket.on('disconnect', () => { try { game.disconnect(socket); } catch { /* already left */ } });
   });
+  let lastUsage = Date.now();
   const interval = setInterval(() => {
     game.tick(); const now = Date.now();
+    if (now - lastUsage > 30000) { lastUsage = now; void dialogue.refreshUsage(); }
     for (const [ip, bucket] of attempts) if (bucket.expires <= now) attempts.delete(ip);
   }, 1000); interval.unref();
   return { app, http, io, game, ledger, async close() {

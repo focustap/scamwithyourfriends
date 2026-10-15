@@ -10,19 +10,21 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test",
-    "check": "node --check server/index.js && node --check assets/app.js",
+    "check": "node scripts/check.js",
     "vendor": "node scripts/vendor.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:edge": "node scripts/build-edge.js"
   },
   "dependencies": {
     "dotenv": "^18.0.8",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
-    "openai": "^6.0.0",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
     "@playwright/test": "^1.56.0",
+    "pg": "8.23.1",
     "socket.io-client": "^4.8.1"
   }
 }

@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { NPCS } from '../assets/npcs.js';
+import { evaluatePersuasion } from './persuasion.js';
 
 const clamp = n => Math.max(0, Math.min(100, n));
 const code = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('');
@@ -39,7 +40,7 @@ export class Game {
       if (this.rooms.size >= this.config.maxRooms) throw new Error('Office full. Try later.');
       let roomCode; do { roomCode = code(); } while (this.rooms.has(roomCode));
       room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, earned: 0, quota: 1500,
-        calls: 0, wins: 0, used: [], results: [], event: 'Welcome. Your benefits package is a stapler.', updatedAt: Date.now() };
+        calls: 0, wins: 0, used: [], results: [], memories:{}, event: 'Welcome. Your benefits package is a stapler.', updatedAt: Date.now() };
       this.rooms.set(room.code, room);
     } else {
       if (typeof data.code !== 'string' || !/^[A-Z2-9]{6}$/.test(data.code)) throw new Error('Enter a six-character room code');
@@ -77,14 +78,33 @@ export class Game {
     const npc = NPCS.find(n => n.id === data.npcId);
     if (!npc || player.call || room.used.includes(npc.id) || [...room.players.values()].some(p => p.call?.npcId === npc.id)) throw new Error('That line is unavailable');
     player.call = { id: randomBytes(8).toString('hex'), npcId: npc.id, trust: npc.trust, susp: npc.susp, turns: 0,
-      busy: false, history: [{ who: 'bot', text: pick(npc.greet) }], preoccupation: pick(preoccupations), mode: this.config.aiEnabled ? 'GPT-6 Luna ready' : 'Local dialogue • AI disabled',
+      busy:false, history:[{ who:'system', text:'Line connected. Introduce yourself using your own words.' }],
+      preoccupation:pick(preoccupations), mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
+      memory:[...(room.memories[npc.id] || [])], resolved:[], contributions:{}, pitches:[], ready:false, objection:npc.concerns[0].detail,
       computer: this.computer(), requestTimes: [] };
     room.calls++; this.broadcast(room);
   }
   computer() {
     const sequence = ['ANTENNA', 'KAZOO', 'TOASTER'];
     for (let i = sequence.length - 1; i > 0; i--) { const j = randomInt(i + 1); [sequence[i], sequence[j]] = [sequence[j], sequence[i]]; }
-    return { stage: 'wires', sequence, progress: 0, invoice: randomInt(100, 999), completed: false, attempts: 0, lockedUntil: 0 };
+    const unitPrice = randomInt(20,80), quantity = randomInt(2,5), fee = randomInt(3,10), discount = randomInt(1,5);
+    return { stage:'diagnostics', sequence,progress:0, unitPrice,quantity,fee,discount,invoice:unitPrice * quantity + fee - discount,
+      diagnosed:false,fault:pick(['BUFFER','JITTER','GOSSIP']),terminal:['CHAOS OS sandbox. Type help to list commands.'],completed:false,attempts:0,lockedUntil:0 };
+  }
+  command(socket,data) {
+    const { room,player } = this.current(socket); this.playing(room);
+    const target = room.players.get(data.playerId || player.id), call = target?.call;
+    if (!call || typeof data.command !== 'string' || data.command.length > 80) throw new Error('Invalid sandbox command');
+    const pc = call.computer, cmd = data.command.trim().toUpperCase();
+    let reply;
+    if (cmd === 'HELP') reply = 'Commands: help, scan, repair MODULE, status, ls, cat concerns.txt';
+    else if (cmd === 'SCAN') { pc.diagnosed = true; reply = `Fault detected in ${pc.fault}. Try repair ${pc.fault}.`; }
+    else if (cmd === `REPAIR ${pc.fault}` && pc.diagnosed) { if (pc.stage === 'diagnostics') pc.stage = 'wires'; reply = 'Module repaired. Open Router to restore boot order.'; }
+    else if (cmd === 'STATUS') reply = `System stage: ${pc.stage}. Verified: ${pc.completed}.`;
+    else if (cmd === 'LS') reply = 'concerns.txt / invoice.csv / employee_benefits.txt';
+    else if (cmd === 'CAT CONCERNS.TXT') reply = NPCS.find(n => n.id === call.npcId).concerns.map(c => `${c.id}: ${c.detail}`).join('\n');
+    else reply = 'Unknown sandbox command. Type help. No real commands are executed.';
+    pc.terminal.push('> ' + data.command,reply); pc.terminal = pc.terminal.slice(-14); this.broadcast(room);
   }
   async talk(socket, data) {
     const { room, player } = this.current(socket); this.playing(room);
@@ -105,10 +125,20 @@ export class Game {
       const result = await this.dialogue.reply(npc, call, data.text.trim(), room.event, controller.signal);
       // A late response cannot resurrect a call, pay out, or alter another shift.
       if (room.phase !== 'playing' || player.call !== call || Date.now() >= room.endsAt) return;
-      call.trust = clamp(call.trust + result.trustDelta); call.susp = clamp(call.susp + result.suspicionDelta); call.mode = result.mode;
+      const assessment = evaluatePersuasion(npc,call,data.text.trim(),result);
+      call.trust = clamp(call.trust + assessment.trust); call.susp = clamp(call.susp + assessment.suspicion); call.mode = result.mode;
+      call.ready = assessment.ready; call.objection = result.objection;
+      call.memory = [...new Set([...call.memory,...result.memory])].slice(-6); room.memories[npc.id] = call.memory;
       call.history.push({ who: 'bot', text: result.reply });
+      call.history.push({ who:'system',text:assessment.repeated ? 'Repeated pitch: no rapport gained.' : `Rapport ${assessment.trust >= 0 ? '+' : ''}${assessment.trust}. Concerns addressed: ${call.resolved.length}/3.` });
       this.io.to(player.socketId).emit('npc:speak', { callId: call.id, npcId: npc.id, text: result.reply });
-      if (result.hangup || call.susp >= 90 || call.turns >= 12) this.close(room, player, false, 'Customer hung up.');
+      if (assessment.hangup || call.susp >= 90 || call.turns >= 12) this.close(room, player, false, 'Customer ended the call.');
+    } catch (error) {
+      if (room.phase === 'playing' && player.call === call) {
+        call.turns--; call.ready = false; call.mode = 'AI unavailable • no replacement reply';
+        call.history.push({ who:'system',text:'AI turn failed. No NPC reply or trust reward was substituted.' });
+      }
+      throw error;
     } finally { call.busy = false; delete call.controller; this.broadcast(room); }
   }
   puzzle(socket, data) {
@@ -118,14 +148,15 @@ export class Game {
     const pc = call.computer;
     if (pc.completed) throw new Error('Computer already verified');
     if (Date.now() < pc.lockedUntil) throw new Error('Computer is rebooting. Wait three seconds.');
+    if (pc.stage === 'diagnostics') throw new Error('Run scan and repair in the simulated terminal first');
     if (pc.stage === 'wires') {
       if (data.answer === pc.sequence[pc.progress]) pc.progress++;
       else { pc.progress = 0; pc.attempts++; pc.lockedUntil = Date.now() + 3000; call.susp = clamp(call.susp + 3); }
       if (pc.progress === 3) pc.stage = 'invoice';
     } else if (pc.stage === 'invoice') {
       if (String(data.answer) === String(pc.invoice)) {
-        pc.completed = true; pc.stage = 'done'; call.trust = clamp(call.trust + 15); call.susp = clamp(call.susp - 8);
-        call.history.push({ who: 'system', text: `${player.name} fixed the customer computer. Trust +15.` });
+        pc.completed = true; pc.stage = 'done'; call.trust = clamp(call.trust + 7); call.susp = clamp(call.susp - 8);
+        call.history.push({ who: 'system', text: `${player.name} fixed the customer computer. Trust +7.` });
       } else { pc.attempts++; pc.lockedUntil = Date.now() + 3000; call.susp = clamp(call.susp + 3); }
     }
     this.broadcast(room);
@@ -134,7 +165,7 @@ export class Game {
     const { room, player } = this.current(socket); this.playing(room);
     const call = player.call;
     if (!call || call.busy) throw new Error('Wait for the customer');
-    if (call.trust < 65 || call.susp >= 60 || call.turns < 2 || !call.computer.completed) throw new Error('Need trust ≥65, suspicion <60, two turns, and a verified computer');
+    if (call.trust < 65 || call.susp >= 60 || call.turns < 3 || !call.computer.completed || call.resolved.length < 2 || !call.ready) throw new Error('Need trust ≥65, suspicion <60, three turns, two answered concerns, customer agreement and verified computer');
     this.close(room, player, true, 'Sale approved'); this.broadcast(room);
   }
   close(room, player, win, reason) {
@@ -143,7 +174,6 @@ export class Game {
     const npc = NPCS.find(n => n.id === call.npcId);
     if (win) {
       room.earned += npc.value; room.wins++; player.earned += npc.value;
-      this.io.to(player.socketId).emit('npc:speak', { callId: call.id, npcId: npc.id, text: npc.success, final: true });
     }
     room.used.push(npc.id); room.results.unshift({ name: npc.name, product: npc.offer, player: player.name, win, value: win ? npc.value : 0, reason });
     room.results = room.results.slice(0, 30); player.call = null;

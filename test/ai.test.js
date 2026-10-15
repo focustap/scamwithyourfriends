@@ -1,64 +1,47 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { Dialogue } from '../server/ai.js';
-import { UsageLedger } from '../server/usage.js';
+import { configFromEnv } from '../server/config.js';
 import { NPCS } from '../assets/npcs.js';
-
-const call = () => ({ trust: 30, susp: 20, turns: 2, preoccupation: 'unionized fridge', history: [
-  { who: 'bot', text: 'Who is this?' }, { who: 'me', text: 'Please tell me about your toaster.' },
-] });
-function fixture(t, create, options = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cold-call-ai-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const config = { aiEnabled: true, model: 'gpt-6-luna', outputTokens: 220, dailyTokens: 50000, dailyRequests: 100, dataDir: dir, ...options };
-  const ledger = new UsageLedger(config);
-  return { dialogue: new Dialogue(config, ledger, { responses: { create } }), ledger };
-}
-test('Responses uses requested model, bounded history, no storage, short no-reasoning JSON', async t => {
-  let request;
-  const { dialogue, ledger } = fixture(t, async args => {
-    request = args;
-    return { status: 'completed', output_text: JSON.stringify({ reply: 'Earl says the toaster needs a union.', trustDelta: 999, suspicionDelta: -999, hangup: false }), usage: { input_tokens: 900, output_tokens: 80, total_tokens: 980 } };
+import { evaluatePersuasion } from '../server/persuasion.js';
+const words = 'The price is forty imaginary dollars with no recurring bill.';
+const answer = (extra = {}) => ({ reply:'Does that include the flamingos?',intent:'explanation',concernId:'cost',evidence:words,quality:2,objection:'What does it do?',disposition:'considering',wantsToEnd:false,memory:[],mode:'GPT-6 Luna',...extra });
+const state = () => ({ trust:34,susp:17,turns:1,preoccupation:'goose',history:[{ who:'system',text:'Connected' },{ who:'me',text:words }],memory:[] });
+test('Node calls only the Supabase function, sends no OpenAI key and never retries failures', async () => {
+  let count = 0, sent;
+  const d = new Dialogue({ aiEnabled:true,functionUrl:'https://test.supabase.co/functions/v1/npc-dialogue',gameServerToken:'private-test' },async (url,init) => {
+    count++; sent = { url,init,body:JSON.parse(init.body) }; return Response.json({ error:'DAILY_BUDGET' },{ status:429 });
   });
-  const result = await dialogue.reply(NPCS[0], call(), 'Please tell me about your toaster.');
-  assert.equal(request.model, 'gpt-6-luna'); assert.equal(request.store, false);
-  assert.equal(request.reasoning.effort, 'none'); assert.equal(request.max_output_tokens, 220);
-  assert.equal(request.text.format.strict, true); assert.equal(request.input.length, 2);
-  assert.equal(result.trustDelta, 16); assert.equal(result.suspicionDelta, -12);
-  assert.equal(result.mode, 'GPT-6 Luna'); assert.equal(ledger.snapshot().tokens, 980);
+  await assert.rejects(d.reply(NPCS[1],state(),words,'Office open'),/budget/);
+  assert.equal(count,1); assert.ok(sent.url.endsWith('npc-dialogue')); assert.equal(sent.body.profile.age,48);
+  assert.equal(sent.body.text,words); assert.equal(sent.body.history.length,0); assert.equal(sent.body.model,undefined);
+  await assert.rejects(d.reply(NPCS[1],state(),words,'Office open'),/busy/); assert.equal(count,1);
 });
-test('API failures do not retry, retain reservation and activate cooldown', async t => {
-  let count = 0;
-  const { dialogue, ledger } = fixture(t, async () => { count++; throw new Error('provider secret must stay private'); });
-  const first = await dialogue.reply(NPCS[0], call(), 'hello there friend');
-  assert.match(first.mode, /unavailable/); assert.doesNotMatch(JSON.stringify(first), /secret/);
-  assert.equal(ledger.snapshot().reservedRequests, 1);
-  await dialogue.reply(NPCS[0], call(), 'hello there friend');
-  assert.equal(count, 1);
+test('practice mode is explicit and cannot accidentally make a model call', async () => {
+  const d = new Dialogue({ aiEnabled:false },async () => { throw new Error('network forbidden'); });
+  assert.match((await d.reply(NPCS[1],state(),words,'Office open')).mode,/Practice/);
 });
-test('disabled AI and exhausted daily budget make zero provider calls', async t => {
-  let count = 0;
-  const { dialogue, ledger } = fixture(t, async () => { count++; }, { aiEnabled: false });
-  assert.match((await dialogue.reply(NPCS[0], call(), 'hello friend')).mode, /disabled/);
-  dialogue.config.aiEnabled = true;
-  ledger.config.dailyTokens = 1;
-  assert.match((await dialogue.reply(NPCS[0], call(), 'hello friend')).mode, /budget/);
-  assert.equal(count, 0);
+test('persuasion requires grounded relevant evidence; repetition and repeated concerns diminish', () => {
+  const c = state();
+  assert.equal(evaluatePersuasion(NPCS[1],c,words,answer()).trust,12);
+  assert.equal(evaluatePersuasion(NPCS[1],c,words,answer()).trust,0);
+  const next = 'You can cancel tomorrow and no more invoices will arrive.';
+  assert.equal(evaluatePersuasion(NPCS[1],c,next,answer({ evidence:next })).trust,4);
+  assert.equal(evaluatePersuasion(NPCS[1],c,'Our company is really wonderful and very nice.',answer({ evidence:'a completely invented quotation' })).trust,0);
+  assert.equal(c.resolved.length,1);
+  assert.equal(evaluatePersuasion(NPCS[1],c,'I like you and your whole family very much.',answer({ intent:'smalltalk',quality:3 })).trust,0);
 });
-test('malformed or incomplete output falls back without breaking a call', async t => {
-  const { dialogue } = fixture(t, async () => ({ status: 'completed', output_text: '{invalid', usage: { input_tokens: 50, output_tokens: 20 } }));
-  const result = await dialogue.reply(NPCS[0], call(), 'hello friend');
-  assert.match(result.mode, /Local dialogue/); assert.ok(result.reply);
+test('a model cannot directly set scores or arbitrarily hang up', () => {
+  const c = state(), r = answer({ wantsToEnd:true,trustDelta:999999,hangup:true });
+  const result = evaluatePersuasion(NPCS[1],c,words,r);
+  assert.equal(result.trust,12); assert.equal(result.hangup,false); assert.equal(result.ready,false);
+  const insult = 'You are an idiot, hurry up.';
+  evaluatePersuasion(NPCS[1],c,insult,answer({ intent:'abuse',wantsToEnd:true }));
+  assert.equal(evaluatePersuasion(NPCS[1],c,'Shut up you idiot.',answer({ intent:'abuse',wantsToEnd:true })).hangup,true);
 });
-test('global concurrency cap prevents extra billable requests', async t => {
-  let release;
-  const wait = new Promise(resolve => { release = resolve; });
-  let count = 0;
-  const { dialogue } = fixture(t, async () => { count++; await wait; return { status: 'completed', output_text: JSON.stringify({ reply: 'Hello', trustDelta: 1, suspicionDelta: 0, hangup: false }), usage: { input_tokens: 10, output_tokens: 10 } }; });
-  const first = dialogue.reply(NPCS[0], call(), 'hello friend'), second = dialogue.reply(NPCS[1], call(), 'hello friend');
-  assert.match((await dialogue.reply(NPCS[2], call(), 'hello friend')).mode, /cooling down/);
-  assert.equal(count, 2); release(); await Promise.all([first, second]);
+test('Node rejects OpenAI keys and production works with no persistent Render disk', () => {
+  assert.throws(() => configFromEnv({ OPENAI_API_KEY:'test' }),/only in Supabase/);
+  assert.throws(() => configFromEnv({ AI_ENABLED:'true' }),/GAME_SERVER_TOKEN/);
+  const config = configFromEnv({ NODE_ENV:'production',PRIVATE_GAME_PASSWORD:'private-test',AI_ENABLED:'true',GAME_SERVER_TOKEN:'x'.repeat(32),SUPABASE_URL:'https://test.supabase.co' });
+  assert.equal(config.functionUrl,'https://test.supabase.co/functions/v1/npc-dialogue'); assert.equal(config.dataDir,undefined);
 });

@@ -1,112 +1,49 @@
 # Cold Call Chaos
 
-A private co-op comedy call-center game for **2–4 players**. Pitch ridiculous products to fictional customers, fix their simulated computers, and meet a shared five-minute sales quota. The existing desktop, original characters, trust/suspicion, ledger and shift progression are preserved. The original standalone solo game remains in `prototype.html`.
+Private multiplayer comedy for 2–4 friends. Use your own spoken or typed words to pitch ridiculous fictional products, answer character-specific objections, repair simulated customer computers and meet a shared quota.
 
-The static frontend runs on GitHub Pages. A separate Node.js / Socket.IO server owns rooms, customer lines, money, timers, puzzles and quotas. When enabled, **GPT-6 Luna** powers dialogue through the **OpenAI Responses API**. Browser recognition and speech synthesis provide microphone input and NPC speech without paid audio API calls.
+The frontend stays static for GitHub Pages. Node/Socket.IO owns private rooms, shifts and all rewards on **Render Free**. Supabase `npc-dialogue` alone holds the OpenAI key, calls **GPT-6 Luna Responses**, and uses PostgreSQL for atomic daily budgets. No paid Render disk is needed.
 
-## Local setup — no key needed
+## Start locally
 
-Use Node.js 22 LTS (20.10+ also works).
+Use Node 22. Run `npm ci`, copy `.env.example` to `.env` (`Copy-Item .env.example .env` in PowerShell), then `npm start`. Open `http://localhost:3000` in two browsers/profiles, create/join a room, and let the host start the shift.
 
-```sh
-npm ci
-```
+AI is disabled by default. Offline **Practice** is explicitly labeled and requires relevant explanations rather than repeated compliments. It never runs after a failed AI request. With Supabase configured, mock replies are also labeled; rejected AI turns show an error, grant no trust, and do not substitute canned NPC speech.
 
-Copy `.env.example` to `.env`: `Copy-Item .env.example .env` in PowerShell, or `cp .env.example .env` on macOS/Linux. Then:
+## Supabase and Render setup
 
-```sh
-npm start
-```
+Follow **[the exact Dashboard deployment and safe first-call procedure](docs/SUPABASE_SETUP.md)**. It covers the separate Supabase account, SQL migration, single-file Dashboard function, secrets, auth probes, mock check, one-request live test, and Render Free configuration.
 
-1. Open `http://localhost:3000` in two separate browsers or browser profiles. Duplicated tabs can inherit session storage; separate browsers are clearest.
-2. Choose different desk names. Create a room in the first browser; enter that code and select **JOIN ROOM** in the second.
-3. The host starts the shift. Each desk can call a different customer. New players join between shifts; existing desks can reconnect mid-shift.
-4. Talk or type to build rapport. Open **Computer** to solve the boot sequence and invoice puzzles. A teammate can fix your computer while you talk.
-5. Close a deal with trust >=65, suspicion <60, two completed conversation turns and a verified computer. Sales contribute to the shared quota.
+- Supabase only: `OPENAI_API_KEY` and its internal database credentials.
+- Supabase + Node/Render only: matching private `GAME_SERVER_TOKEN`.
+- Node/Render only: `PRIVATE_GAME_PASSWORD` for players; `AI_ENABLED=false` until ready.
+- Public frontend: `config.js` contains only the Render backend origin. Publish Pages from `main` / root after merge.
 
-`AI_ENABLED=false` is the default. This uses clearly labeled local dialogue with fully working multiplayer, voice, computer puzzles, events and sales. The archived `prototype.html` still works offline as the original solo game. The multiplayer client requires the backend.
+The migration starts disabled, in mock mode, with live calls disallowed and one request per mode/day. A source commit does not deploy or enable anything. Node rejects an OpenAI key in its environment. The [official model docs](https://developers.openai.com/api/docs/models/gpt-6-luna) confirm `gpt-6-luna` with `reasoning.effort: "none"`; the Edge Function uses Responses structured output, `store:false`, no tools and no automatic retries.
 
-## Enable your OpenAI project key
+## Gameplay and desktop
 
-Set these **only in your private `.env` or Render environment**, never in `config.js`, HTML, GitHub Pages, a URL, or Git commits:
+Every NPC has a name, age, occupation, background, personality, humor, speech style, three personal concerns, and bounded memory. Profiles and the last ten messages plus the current words go to the model on each turn. Memory stays with the room across shifts and resets when the server/room ends.
 
-```dotenv
-OPENAI_API_KEY=your-project-key-here
-AI_ENABLED=true
-```
+Trust requires a grounded answer to a concern: first relevant contribution +12, a distinct follow-up +4, then no more. Repeated pitches earn nothing and increase suspicion. Discovery can add +3 once. A repaired computer adds +7 once. Sales require trust >=65, suspicion <60, three successful turns, two answered concerns, customer agreement, and a verified computer. The server validates scoring, hangups, puzzles, money and duplicate rewards.
 
-Restart the backend. The fixed model identifier is `gpt-6-luna`; your project must have model access. No automatic model substitution occurs. The [official model documentation](https://developers.openai.com/api/docs/models/gpt-6-luna) lists Responses support and `reasoning.effort: "none"`. The backend uses `store: false`, short structured replies, no tools, no automatic retries, and the last eight dialogue messages. See [Responses documentation](https://developers.openai.com/api/docs/guides/migrate-to-responses).
+Drag application title bars; minimize, maximize, close and restore from the taskbar. Phone, Operations, Computer, File Explorer, Sales Ledger, Calculator, Notepad, Settings and Handbook are separate apps. Terminal supports `scan`, `repair MODULE`, `status`, `ls` and `cat concerns.txt`; it never executes real commands. Repair the module, restore the router sequence, then calculate and verify an itemized invoice. Teammates can work on your computer while you talk. Calculator is an arithmetic parser, not `eval`. Notepad stays in that browser tab and is not sent to the model.
 
-Customers have distinct personalities and a randomized personal preoccupation. The model reacts to the player's words and recent conversation, with bounded trust/suspicion changes. The server independently validates sales; the model never sets payouts. Greetings, puzzles and events do not call OpenAI. Provider errors, timeouts or budget limits activate labeled local dialogue so play continues.
+## Free voice
 
-## Deploy the backend to Render
+**TALK** uses browser recognition; pause or press STOP to send final words. Browser `speechSynthesis` supplies NPC voices immediately. Hands-free mode resumes after an NPC reply; headphones prevent echo. Desktop Chrome/Edge on HTTPS or localhost generally support recognition; typed input remains available. Recognition may use the browser vendor's servers. The game sends transcripts, not recordings, to its backend.
 
-Import `render.yaml` as a Render Blueprint **after merging the PR**, or select the development branch when creating a service manually. Deployment has not been performed for you.
+Settings offers an explicit **Download & enable Kokoro** option. It loads pinned `kokoro-js@1.2.1` from jsDelivr and a quantized Kokoro-82M model from Hugging Face, then generates speech locally in a WASM worker. This is a large optional download, can take minutes, and performance varies by browser/hardware. Loading/generation errors visibly select browser voices. Interruptions discard obsolete audio. No paid voice API or Render inference is involved. See [Kokoro.js](https://github.com/hexgrad/kokoro/tree/main/kokoro.js). The static game works without these external assets unless you opt into Kokoro.
 
-The blueprint creates a **paid Starter web service and 1 GB persistent disk**. Browser speech is free to this application; hosting and text-model calls are separate expenses. A durable disk preserves usage limits across restarts. Render's free filesystem loses writes on restart/redeploy: [persistent-disk documentation](https://render.com/docs/disks). A free service can test multiplayer with AI disabled; keep AI disabled until durable storage is attached.
+## Limits and availability
 
-Manual settings:
+Persistent token/request reservations, rate and concurrency limits live in PostgreSQL. Byte-based conservative reservations are made before requests; known usage settles once; failures with unknown usage remain charged. Requests crossing midnight settle the original UTC day. Mock/live buckets are distinct. See the setup guide for administrator controls and security verification.
 
-| Setting | Value |
-| --- | --- |
-| Runtime | Node.js 22 |
-| Build | `npm ci --omit=dev` |
-| Start | `npm start` |
-| Health check | `/health` |
-| Instances | **1** |
-| Disk mount | `/var/data` |
-| `NODE_ENV` | `production` |
-| `DATA_DIR` | `/var/data` |
-| `ALLOWED_ORIGINS` | `https://focustap.github.io` |
-| `PRIVATE_GAME_PASSWORD` | A long random password shared only with your friends |
-| `OPENAI_API_KEY` | Your private project key, configured by you |
-| `AI_ENABLED` | Start with `false`; switch to `true` when ready |
+Defaults: 50,000 tokens/day, **one request/day until explicitly raised**, 6 requests/minute globally, 2 in flight, 320 output tokens, nine-second provider timeout, zero retries. Node additionally limits turns per player/room, input length, active rooms and Socket.IO payloads. Budgets are application token limits, not account-wide dollar caps.
 
-The blueprint generates a private-server password. Retrieve it from Render's environment panel and share it privately with players. Add the Render service's own HTTPS origin to `ALLOWED_ORIGINS` if you also want to play from its hosted frontend. Origins are comma-separated, with **no paths or trailing slashes**. Do not use `*`.
+Render Free may sleep or restart; active rooms are in memory and end on restart. Durable accounting survives in Supabase. Reconnecting players have a 45-second grace period; the host role transfers after expiry. Keep one Node instance. No player-to-player voice chat is included.
 
-Render supplies `PORT`; the app listens on `0.0.0.0`. Socket.IO uses the same HTTP server/port, supports polling and WebSockets, and reconnects after network loss. See [Render WebSockets](https://render.com/docs/websocket). Automatic deploys are off in the blueprint to avoid interrupting shifts.
-
-Rooms and sessions are in memory: restarting/deploying ends current games. The **daily usage ledger** persists on disk. Run one process and one instance only. Horizontal scaling would require shared game storage, a Socket.IO adapter and a transactional shared usage ledger.
-
-## Deploy the frontend to GitHub Pages
-
-1. After merging, select **Settings → Pages → Deploy from a branch → main → /(root)**.
-2. In public `config.js`, set `backendUrl` to your service origin, e.g. `https://your-service.onrender.com`. This URL contains no secret. Alternatively players can paste it into the landing screen.
-3. Visit `https://focustap.github.io/scamwithyourfriends/`, enter the private server password, and create/join a room.
-
-There is no frontend build or CDN dependency. Relative asset paths support the repository subdirectory. The Socket.IO browser client and license are committed in `assets`; regenerate them with `npm run vendor` when upgrading Socket.IO. GitHub Pages cannot run the backend or store secrets.
-
-## Voice and privacy
-
-- **TALK** starts recognition. Pause or press **STOP** to submit final recognized words; interim words appear under the input. TALK interrupts NPC speech. Recognition ends on hangup, leave, disconnect or changing apps.
-- NPC replies use `speechSynthesis`, assigning available voices and pitches per character. Settings controls playback, speed and optional **hands-free** mode, which listens after a spoken reply. Use headphones to prevent echo. Player-to-player audio chat is not included.
-- Use desktop Chrome or Edge on HTTPS (or localhost). Support, recognition quality, permissions and voices depend on browser/OS. Recognition may send audio to the browser vendor's servers and is not guaranteed offline. Typed input remains available.
-- The backend receives transcripts, not microphone recordings. With AI enabled, recent conversation text goes to OpenAI. Conversations stay in memory and are not written to the usage ledger. That file contains counts and reservation identifiers only.
-
-## Spending controls and operations
-
-| Variable / rule | Default |
-| --- | --- |
-| `AI_ENABLED` | `false` (explicit opt-in) |
-| `DAILY_TOKEN_LIMIT` | 50,000 across the backend |
-| `DAILY_REQUEST_LIMIT` | 100 across the backend |
-| `MAX_OUTPUT_TOKENS` | 220 per response (configurable maximum 400) |
-| Concurrent model requests | 2 globally |
-| Model request rate | 12 per minute globally |
-| Player / room turn rates | 6 / 16 per minute |
-| Turn cooldown / call length | 1.2 seconds / 12 turns |
-| API timeout / automatic retries | 9 seconds / zero |
-| Provider-error circuit breaker | 60-second cooldown |
-| `MAX_ROOMS` | 10 (4 players maximum each) |
-| `SHIFT_SECONDS` | 300 |
-
-Before each provider request, the server synchronously saves a conservative input/output token reservation to `DATA_DIR/usage.json`. Success replaces it with reported usage; ambiguous failures and crashes keep the full reservation charged. The daily bucket is **UTC**; requests spanning midnight settle against their original day. Reservations use UTF-8 input/schema bytes plus framing overhead and the output limit, so AI can pause before the displayed token maximum is reached. Failed requests count toward the request limit. Budget/storage failures fall back to local dialogue. Corrupt ledgers stop startup instead of silently resetting spending.
-
-The operations console shows total charged/reserved tokens and daily request counts. The ledger also records reported input/output tokens separately. Keep it on the original persistent disk. Deleting it, restoring an older snapshot, changing `DATA_DIR` or running another backend with this key bypasses one service's accounting. This is a token/request cap for this app, **not an account-wide currency cap**. Use a dedicated project key, restrict access and configure the project's available limits/alerts. To stop new paid calls, set `AI_ENABLED=false` and restart; in-flight calls may still bill. Keep the ledger when doing so.
-
-Production requires a private server password. Rejoin sessions use random bearer tokens in that browser tab's session storage; the password stays in memory. Room codes are invitations, not account authentication. Rate/payload limits and exact origin checks cover polling and WebSocket handshakes. Password holders can consume the shared budget, so use a trusted small group. Disconnected players keep their seat for 45 seconds, then their line releases and the host role transfers. Only static client files and `/health` are served over HTTP.
-
-## Tests and first live check
+## Tests
 
 ```sh
 npm run check
@@ -116,6 +53,6 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Backend tests use real Socket.IO clients (up to four players) and mocked Responses calls. Browser tests run two independent clients through a complete sale, cooperative puzzles, speech callbacks, hands-free restart, reload/rejoin, shift progression and the GitHub Pages subdirectory path. A small-screen/unsupported-recognition case is included. Headless tests mock speech providers: they verify event wiring, not a physical microphone, audible voice quality or real GPT latency. No tests make paid model calls. CI runs on Node 22.
+Backend tests cover the protected Edge handler with mocked model/REST responses, server-only integration, evidence/repetition scoring, secret boundaries, real Socket.IO rooms and PostgreSQL migration/accounting. Without Docker, local database tests use PostgreSQL compiled to WASM (PGlite); CI uses independent PostgreSQL 17 connections for concurrent reservation tests. No tests call a deployed project or paid model. Dashboard bundle parity is checked by `npm run check`; regenerate with `npm run build:edge`.
 
-After configuring your key, do one real two-player call in Chrome/Edge: enable speech, grant mic permission, say something specific, confirm the NPC responds to it, then verify token counts update. Deny mic permission once and verify typing works. Confirm Render's ledger survives a restart before extended play. A real-key/audio-device smoke test remains necessary on your deployment.
+Browser tests cover microphone/speech callbacks, cooperative terminal/router/invoice repair, shared sales, reconnect/shift behavior, window dragging/restoring, Calculator/Notepad and narrow-screen fallback under the Pages subdirectory. Speech providers are mocked. Actual microphone quality, Kokoro model generation, GPT response quality and hosted latency still require the manual opt-in smoke procedure; they have not been validated by these automated tests.
