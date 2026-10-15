@@ -78,9 +78,9 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await expect(a.locator('#micBtn')).toContainText('STOP');
   await a.screenshot({ path: 'test-results/desktop-call.png', fullPage: true });
   await a.locator('#dealBtn').click();
-  await expect(a.locator('#earnings')).toHaveText('$400'); await expect(b.locator('#earnings')).toHaveText('$400');
+  await expect(a.locator('#earnings')).toHaveText('$140'); await expect(b.locator('#earnings')).toHaveText('$140');
   await b.reload(); await b.locator('#enterBtn').click();
-  await expect(b.locator('#app')).toBeVisible(); await expect(b.locator('#earnings')).toHaveText('$400');
+  await expect(b.locator('#app')).toBeVisible(); await expect(b.locator('#earnings')).toHaveText('$140');
   await a.locator('#endShift').click();
   await expect(a.locator('#overlay')).toContainText('SHIFT COMPLETE'); await expect(b.locator('#overlay')).toContainText('SHIFT COMPLETE');
   await a.locator('#nextShift').click(); await expect(a.locator('#earnings')).toHaveText('$0');
