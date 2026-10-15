@@ -2,7 +2,7 @@
 
 Private multiplayer comedy for 2–4 friends. Use your own spoken or typed words to pitch ridiculous fictional products, answer character-specific objections, repair simulated customer computers and meet a shared quota.
 
-The frontend stays static for GitHub Pages. Node/Socket.IO owns private rooms, shifts and all rewards on **Render Free**. Supabase `npc-dialogue` alone holds the OpenAI key, calls **GPT-5.6 Terra Responses**, and uses PostgreSQL for atomic daily budgets. No paid Render disk is needed.
+The frontend stays static for GitHub Pages. Node/Socket.IO owns private rooms, shifts and all rewards on **Render Free**. Supabase `npc-dialogue` alone holds the OpenAI key, calls **GPT-5.6 Luna Responses**, and uses PostgreSQL for atomic daily budgets. No paid Render disk is needed.
 
 ## Start locally
 
@@ -19,11 +19,11 @@ Follow **[the exact Dashboard deployment and safe first-call procedure](docs/SUP
 - Node/Render only: `PRIVATE_GAME_PASSWORD` for players; `AI_ENABLED=false` until ready.
 - Public frontend: `config.js` contains only the Render backend origin. Publish Pages from `main` / root after merge.
 
-The migration starts disabled, in mock mode, with live calls disallowed and one request per mode/day. A source commit does not deploy or enable anything. Node rejects an OpenAI key in its environment. The [official model docs](https://developers.openai.com/api/docs/models/gpt-5.6-terra) confirm `gpt-5.6-terra` with `reasoning.effort: "none"`; the Edge Function uses Responses structured output, `store:false`, no tools and no automatic retries.
+The migration starts disabled, in mock mode, with live calls disallowed and one request per mode/day. A source commit does not deploy or enable anything. Node rejects an OpenAI key in its environment. The [official model docs](https://developers.openai.com/api/docs/models/gpt-5.6-luna) confirm `gpt-5.6-luna` with `reasoning.effort: "none"`; the Edge Function uses Responses structured output, `store:false`, no tools and no automatic retries.
 
 ## Gameplay and desktop
 
-Every NPC has a name, age, occupation, background, personality, humor, speech style, three personal concerns, and bounded memory. Profiles and the last ten messages plus the current words go to the model on each turn. Memory stays with the room across shifts and resets when the server/room ends.
+Every NPC has a name, age, occupation, background, personality, humor, speech style, three personal concerns, and bounded memory. Profiles and the last six messages plus the current words go to the model on each turn. Memory stays with the room across shifts and resets when the server/room ends.
 
 Trust requires a grounded answer to a concern: first relevant contribution +12, a distinct follow-up +4, then no more. Repeated pitches earn nothing and increase suspicion. Discovery can add +3 once. A repaired computer adds +7 once. Sales require trust >=65, suspicion <60, three successful turns, two answered concerns, customer agreement, and a verified computer. The server validates scoring, hangups, puzzles, money and duplicate rewards.
 

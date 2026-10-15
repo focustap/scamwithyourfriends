@@ -95,7 +95,7 @@ node scripts/ai-smoke.js --mock-once
 
 Expected: `[MOCK]` response, `Supabase mock` mode, one mock request recorded, zero reported input/output model tokens, and no OpenAI request. A second mock request is rejected by the database. Mock mode deliberately does not score meaningful persuasion or make sales; offline practice is separate. The smoke script also insists on the one-request limit and does not retry. Do not delete reservation rows to repeat a test.
 
-## 6. First real Terra call: one request, private terminal
+## 6. First real Luna call: one request, private terminal
 
 Keep Render `AI_ENABLED=false` and do not run a multiplayer shift during this test. In SQL Editor:
 
@@ -113,7 +113,7 @@ Confirm the **live** UTC bucket has zero requests. Mock usage is in a separate b
 node scripts/ai-smoke.js --live-once
 ```
 
-The script checks live mode, an open budget, zero previous live requests, a daily request ceiling of exactly one and a token limit no larger than 50,000. It sends Doug's profile, memory/context and one player question to the protected function. It prints only the response mode, NPC reply and usage counts, never credentials. Expected mode: **GPT-5.6 Terra**, with an answer to the actual question about his flamingos. Even if the provider times out or returns invalid output, no retry occurs and the reservation remains charged where usage is unknown. Another request cannot pass the one-request ceiling.
+The script checks live mode, an open budget, zero previous live requests, a daily request ceiling of exactly one and a token limit no larger than 50,000. It sends Doug's profile, memory/context and one player question to the protected function. It prints only the response mode, NPC reply and usage counts, never credentials. Expected mode: **GPT-5.6 Luna**, with an answer to the actual question about his flamingos. Even if the provider times out or returns invalid output, no retry occurs and the reservation remains charged where usage is unknown. Another request cannot pass the one-request ceiling.
 
 Immediately disable live calls again:
 
@@ -149,3 +149,8 @@ Configure the public `config.js` with the Render backend origin or enter it on t
 No conversation text or profiles are stored in accounting tables. A SHA-256 payload digest identifies the reservation; it is not an anonymous-data guarantee. Node holds bounded customer memory and recent turns for the room lifetime, including between shifts; it resets when the room/server ends. GPT receives the profile, bounded memory, recent history and current words each turn. No raw model score, hangup flag, sale, or reward is accepted from the browser.
 
 Service-role secrets bypass RLS and must remain in Supabase's runtime. This app's limits cover this function and project ledger, not other uses of your OpenAI key or an account-wide dollar cap. Use a dedicated OpenAI project and its available billing controls. Supabase Free quotas and availability remain subject to the platform's limits; failed accounting prevents a model call.
+
+
+## Token-efficient dialogue
+
+The live model is **GPT-5.6 Luna**, the modern nano-tier model. The Edge prompt asks for short NPC replies (35 words maximum), a compact assessment and at most two concrete memory facts. The Node server sends the previous six non-system chat messages, bounded durable memory and the current message. A new model request still resends these fields; memory is stored in the room on Render, not inside OpenAI. Model maximum output is capped at 280 tokens even if the SQL `output_tokens` setting is higher. Both request and token budgets continue to apply. This reduces average token use but does not guarantee a particular cost, token count, or complimentary API allowance.

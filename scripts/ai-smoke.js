@@ -26,7 +26,7 @@ try {
       if (before.mode !== mode || before.blocked || before.requestLimit !== 1 || before.requests !== 0 || before.tokenLimit > 50000) throw new Error('Smoke call requires the expected mode, an open budget, daily_requests=1, zero requests in that mode today, and daily_tokens<=50000.');
       const words = 'Before I pitch invisible lawn security, what is worrying you about your flamingos?';
       const result = await dialogue.reply(NPCS[1],{ trust:34,susp:17,preoccupation:'a goose has taken over the driveway',history:[{ who:'me',text:words }],memory:[],turns:1 },words,'Office open');
-      if (mode === 'live' && result.mode !== 'GPT-5.6 Terra') throw new Error('Expected a real model reply. Stop and inspect the configuration.');
+      if (mode === 'live' && result.mode !== 'GPT-5.6 Luna') throw new Error('Expected a real model reply. Stop and inspect the configuration.');
       if (mode === 'mock' && !result.mode.includes('mock')) throw new Error('Expected a mock reply.');
       console.log('Reply mode:',result.mode); console.log('NPC:',result.reply);
       console.log('Usage after:',JSON.stringify(dialogue.ledger.snapshot()));
