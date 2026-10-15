@@ -56,3 +56,12 @@ npm audit --omit=dev
 Backend tests cover the protected Edge handler with mocked model/REST responses, server-only integration, evidence/repetition scoring, secret boundaries, real Socket.IO rooms and PostgreSQL migration/accounting. Without Docker, local database tests use PostgreSQL compiled to WASM (PGlite); CI uses independent PostgreSQL 17 connections for concurrent reservation tests. No tests call a deployed project or paid model. Dashboard bundle parity is checked by `npm run check`; regenerate with `npm run build:edge`.
 
 Browser tests cover microphone/speech callbacks, cooperative terminal/router/invoice repair, shared sales, reconnect/shift behavior, window dragging/restoring, Calculator/Notepad and narrow-screen fallback under the Pages subdirectory. Speech providers are mocked. Actual microphone quality, Kokoro model generation, GPT response quality and hosted latency still require the manual opt-in smoke procedure; they have not been validated by these automated tests.
+
+
+## Negotiation and software upgrades
+
+NPC list prices are now affordable fictional opening offers (Mildred $150); negotiated prices influence AI willingness, and the final agreed number determines the server-verified sale payout. Quotes between 50% and 200% of the list price can close after genuine NPC agreement. Lower prices tend to be easier but earn less; markups may be harder but earn more. For two players the initial shift quota is $400; each extra player adds $100 and later shifts add $70, capped at $900.
+
+The OS desktop now has wallpaper shortcuts, a Start launcher and windowed Phone, Computer, Ledger, File Explorer, Help, App Store, Vault Lab and other tools. Server-held team credits accumulate from sales and bonus jobs, and buying apps never subtracts from shift progress. Buy SSD Extractor ($80) and Wallet Cipher ($160) to unlock fictional badge/PIN extraction mini-games on verified customer computers ($30/$75 once per target). These interact only with invented game state: no real SSDs, wallets, keys, devices or accounts are accessed. Room upgrades persist through shifts only until the Render room ends.
+
+To update a live deployment, redeploy the Render server from main and then paste the entire matching `supabase/dashboard/npc-dialogue.ts` bundle into the Supabase `npc-dialogue` Edge Function editor. No SQL change or new secrets are required.
