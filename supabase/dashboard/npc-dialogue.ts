@@ -2,7 +2,7 @@
 // @ts-nocheck
 // Dependency-free source, shared by the Deno entry point and Node mock tests.
 // Never logs headers, prompts, provider errors, dialogue or secrets.
-const MODEL = 'gpt-6-luna';
+const MODEL = 'gpt-5.6-terra';
 const MAX_BODY = 24000;
 const intents = ['discovery', 'explanation', 'objection', 'smalltalk', 'pressure', 'abuse', 'goodbye'];
 const assessmentSchema = {
@@ -133,7 +133,7 @@ STATE: ${JSON.stringify(turn.context)}`;
         if (result.status !== 'completed') throw new Failure('MODEL_INCOMPLETE',502);
         const output = (result.output || []).filter(x => x.type === 'message').flatMap(x => x.content || []).filter(x => x.type === 'output_text').map(x => x.text).join('');
         let parsed; try { parsed = JSON.parse(output); } catch { throw new Failure('INVALID_MODEL_REPLY',502); }
-        return json(200,{ ...validateAssessment(parsed), mode:'GPT-6 Luna', usage });
+        return json(200,{ ...validateAssessment(parsed), mode:'GPT-5.6 Terra', usage });
       } catch (error) {
         // Unknown failures keep the full reservation. No automatic provider retries.
         try { await rpc('npc_fail',{ p_request_id:turn.requestId }); } catch { /* reservation already durable */ }

@@ -40,9 +40,9 @@ test('Edge validates profiles, history, stream size and actions before paid work
 });
 test('Edge calls Responses only after durable reservation and settles reported usage', async () => {
   const f = setup(), p = payload(); const response = await f.send(p); assert.equal(response.status,200);
-  const result = await response.json(); assert.equal(result.mode,'GPT-6 Luna'); assert.equal(result.reply,assessment.reply);
+  const result = await response.json(); assert.equal(result.mode,'GPT-5.6 Terra'); assert.equal(result.reply,assessment.reply);
   assert.deepEqual(f.calls.map(c => c.url.split('/').at(-1)),['npc_usage_status','npc_reserve','responses','npc_settle']);
-  const provider = f.calls[2].body; assert.equal(provider.model,'gpt-6-luna'); assert.equal(provider.store,false); assert.equal(provider.reasoning.effort,'none');
+  const provider = f.calls[2].body; assert.equal(provider.model,'gpt-5.6-terra'); assert.equal(provider.store,false); assert.equal(provider.reasoning.effort,'none');
   assert.ok(provider.instructions.includes(p.profile.background)); assert.ok(provider.instructions.includes(p.memory[0]));
   assert.equal(provider.input.at(-1).content,p.text); assert.equal(provider.input.length,2);
   assert.ok(f.calls[1].body.p_tokens > provider.max_output_tokens); assert.equal(f.calls[1].body.p_payload_hash.length,64);
@@ -89,7 +89,7 @@ test('Node-to-Edge-to-Responses bridge passes actual player words and bounded NP
     (url,init) => f.handler(new Request(url,init)));
   const reply = await node.reply(NPCS[1],{ trust:34,susp:17,preoccupation:'a goose moved in',
     history:[{ who:'bot',text:'My flamingos need insurance.' },{ who:'me',text:words }],memory:['Earl has the rake.'] },words,'Office open');
-  assert.equal(reply.mode,'GPT-6 Luna'); assert.equal(node.ledger.snapshot().available,true);
+  assert.equal(reply.mode,'GPT-5.6 Terra'); assert.equal(node.ledger.snapshot().available,true);
   const request = f.calls.find(c => c.url.includes('openai.com')).body;
   assert.equal(request.input.at(-1).content,words); assert.equal(request.input.length,2);
   assert.ok(request.instructions.includes('Earl has the rake.')); assert.ok(request.instructions.includes(NPCS[1].speechStyle));

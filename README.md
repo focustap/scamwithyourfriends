@@ -2,7 +2,7 @@
 
 Private multiplayer comedy for 2–4 friends. Use your own spoken or typed words to pitch ridiculous fictional products, answer character-specific objections, repair simulated customer computers and meet a shared quota.
 
-The frontend stays static for GitHub Pages. Node/Socket.IO owns private rooms, shifts and all rewards on **Render Free**. Supabase `npc-dialogue` alone holds the OpenAI key, calls **GPT-6 Luna Responses**, and uses PostgreSQL for atomic daily budgets. No paid Render disk is needed.
+The frontend stays static for GitHub Pages. Node/Socket.IO owns private rooms, shifts and all rewards on **Render Free**. Supabase `npc-dialogue` alone holds the OpenAI key, calls **GPT-5.6 Terra Responses**, and uses PostgreSQL for atomic daily budgets. No paid Render disk is needed.
 
 ## Start locally
 
@@ -19,7 +19,7 @@ Follow **[the exact Dashboard deployment and safe first-call procedure](docs/SUP
 - Node/Render only: `PRIVATE_GAME_PASSWORD` for players; `AI_ENABLED=false` until ready.
 - Public frontend: `config.js` contains only the Render backend origin. Publish Pages from `main` / root after merge.
 
-The migration starts disabled, in mock mode, with live calls disallowed and one request per mode/day. A source commit does not deploy or enable anything. Node rejects an OpenAI key in its environment. The [official model docs](https://developers.openai.com/api/docs/models/gpt-6-luna) confirm `gpt-6-luna` with `reasoning.effort: "none"`; the Edge Function uses Responses structured output, `store:false`, no tools and no automatic retries.
+The migration starts disabled, in mock mode, with live calls disallowed and one request per mode/day. A source commit does not deploy or enable anything. Node rejects an OpenAI key in its environment. The [official model docs](https://developers.openai.com/api/docs/models/gpt-5.6-terra) confirm `gpt-5.6-terra` with `reasoning.effort: "none"`; the Edge Function uses Responses structured output, `store:false`, no tools and no automatic retries.
 
 ## Gameplay and desktop
 

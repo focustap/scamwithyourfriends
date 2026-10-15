@@ -95,7 +95,7 @@ node scripts/ai-smoke.js --mock-once
 
 Expected: `[MOCK]` response, `Supabase mock` mode, one mock request recorded, zero reported input/output model tokens, and no OpenAI request. A second mock request is rejected by the database. Mock mode deliberately does not score meaningful persuasion or make sales; offline practice is separate. The smoke script also insists on the one-request limit and does not retry. Do not delete reservation rows to repeat a test.
 
-## 6. First real Luna call: one request, private terminal
+## 6. First real Terra call: one request, private terminal
 
 Keep Render `AI_ENABLED=false` and do not run a multiplayer shift during this test. In SQL Editor:
 
@@ -113,7 +113,7 @@ Confirm the **live** UTC bucket has zero requests. Mock usage is in a separate b
 node scripts/ai-smoke.js --live-once
 ```
 
-The script checks live mode, an open budget, zero previous live requests, a daily request ceiling of exactly one and a token limit no larger than 50,000. It sends Doug's profile, memory/context and one player question to the protected function. It prints only the response mode, NPC reply and usage counts, never credentials. Expected mode: **GPT-6 Luna**, with an answer to the actual question about his flamingos. Even if the provider times out or returns invalid output, no retry occurs and the reservation remains charged where usage is unknown. Another request cannot pass the one-request ceiling.
+The script checks live mode, an open budget, zero previous live requests, a daily request ceiling of exactly one and a token limit no larger than 50,000. It sends Doug's profile, memory/context and one player question to the protected function. It prints only the response mode, NPC reply and usage counts, never credentials. Expected mode: **GPT-5.6 Terra**, with an answer to the actual question about his flamingos. Even if the provider times out or returns invalid output, no retry occurs and the reservation remains charged where usage is unknown. Another request cannot pass the one-request ceiling.
 
 Immediately disable live calls again:
 
