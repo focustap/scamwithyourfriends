@@ -167,3 +167,21 @@ test('shared upgrades and fictional SSD and wallet rewards are verified by serve
   assert.equal(state.credits,115);
   assert.equal(state.lootResults.length,2);
 });
+
+test('negotiated sale pays the quoted price, not the NPC sticker price',async t => {
+  const { client,server } = await fixture(t);
+  const a=await client(),b=await client(),host=await emit(a,'room:create',{name:'Agent'});
+  await emit(b,'room:join',{ name:'Assistant',code:host.code });
+  await emit(a,'shift:start');
+  await emit(a,'call:dial',{npcId:'mildred'});
+  const call=server.game.rooms.get(host.code).players.get(host.playerId).call;
+  call.trust=80;call.susp=0;call.turns=3;call.resolved=['cost','usefulness'];call.ready=true;call.computer.completed=true;
+  call.offerPrice=1;
+  assert.equal((await emit(a,'call:deal')).ok,false);
+  call.offerPrice=100;
+  assert.equal((await emit(a,'call:deal')).ok,true);
+  const state=(await emit(a,'room:sync')).state;
+  assert.equal(state.earned,100);
+  assert.equal(state.credits,100);
+  assert.equal(state.results[0].value,100);
+});

@@ -43,7 +43,7 @@ test('Edge calls Responses only after durable reservation and settles reported u
   const result = await response.json(); assert.equal(result.mode,'GPT-5.6 Luna'); assert.equal(result.reply,assessment.reply);
   assert.deepEqual(f.calls.map(c => c.url.split('/').at(-1)),['npc_usage_status','npc_reserve','responses','npc_settle']);
   const provider = f.calls[2].body; assert.equal(provider.model,'gpt-5.6-luna'); assert.equal(provider.store,false); assert.equal(provider.reasoning.effort,'none');
-  assert.ok(provider.instructions.includes(p.profile.background)); assert.ok(provider.instructions.includes(p.memory[0])); assert.ok(provider.instructions.includes('"resolved":["cost"]'));
+  assert.ok(provider.instructions.includes(p.profile.background)); assert.ok(provider.instructions.includes(p.memory[0])); assert.ok(provider.instructions.includes('"resolved":["cost"]')); assert.ok(provider.instructions.includes('"listedPrice":140')); assert.ok(provider.instructions.includes('"offerPrice":100'));
   assert.equal(provider.input.at(-1).content,p.text); assert.equal(provider.input.length,2);
   assert.ok(f.calls[1].body.p_tokens > provider.max_output_tokens); assert.equal(f.calls[1].body.p_payload_hash.length,64);
   assert.equal(f.calls[3].body.p_total,1020);

@@ -137,8 +137,10 @@ export class Game {
       // A late response cannot resurrect a call, pay out, or alter another shift.
       if (room.phase !== 'playing' || player.call !== call || Date.now() >= room.endsAt) return;
       const assessment = evaluatePersuasion(npc,call,data.text.trim(),result);
+      const previousPrice = call.offerPrice;
       call.offerPrice = proposedPrice;
-      call.declineStreak = result.disposition === 'declines' ? call.declineStreak + 1 : 0;
+      // A genuinely improved price deserves another chance, even after earlier refusals.
+      call.declineStreak = quoted !== null && quoted < previousPrice ? 0 : result.disposition === 'declines' ? call.declineStreak + 1 : 0;
       call.trust = clamp(call.trust + assessment.trust); call.susp = clamp(call.susp + assessment.suspicion); call.mode = result.mode;
       const bounds = priceRange(npc.value);
       call.ready = assessment.ready && call.offerPrice >= bounds.min && call.offerPrice <= bounds.max; call.objection = result.objection;
