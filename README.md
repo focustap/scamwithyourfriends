@@ -90,3 +90,8 @@ Callers and sale products are now separate. Every new day the server gives each 
 Desktop wallpapers live in `assets/wallpapers/`. The default is `bgpic1.jpg`, with `bgpic2.jpg` through `bgpic5.jpg` available in the Wallpapers app and Start menu. Upload another JPG, PNG, WebP or SVG to that folder, then add `{"file":"name.jpg","name":"Display name"}` to `assets/wallpapers/manifest.json` for it to appear in the picker. The selection is stored per browser in `localStorage`, not on the room server; it persists across refreshes and doesn't affect other teammates.
 
 Sales goals are straightforward: PRICE (quote the offered amount), BENEFIT (say what this product does) and TRUST (give a reason or demo). Benefit/trust grading accepts concise, relevant answers; a hostile or threatening seller can cause the customer to end the call immediately when the AI chooses to leave. Initial closing odds are higher at lower trust, with repaired computers and strong sales pitches still improving the chance.
+
+
+## Clean desktop and shift launcher
+
+Entering an office room **opens no applications by default**. Instead, a translucent management card on the wallpaper displays quota, day, connected desks, and a prominent Start Day button (host only), so solo players do not need to open Operations to begin. Starting the day does not open Phone automatically. Open Phone, Computer or any other app from the desktop shortcuts, dock or Start menu. End Day Early also appears on the management card during a live shift. Open app windows minimize to the taskbar; closing one removes its window and taskbar entry, without automatically reopening anything. Each app uses unique self-contained SVG artwork and a distinct theme color, also visible in the app title bar and taskbar.
