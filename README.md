@@ -65,3 +65,8 @@ NPC list prices are now affordable fictional opening offers (Mildred $150); nego
 The OS desktop now has wallpaper shortcuts, a Start launcher and windowed Phone, Computer, Ledger, File Explorer, Help, App Store, Vault Lab and other tools. Server-held team credits accumulate from sales and bonus jobs, and buying apps never subtracts from shift progress. Buy SSD Extractor ($80) and Wallet Cipher ($160) to unlock fictional badge/PIN extraction mini-games on verified customer computers ($30/$75 once per target). These interact only with invented game state: no real SSDs, wallets, keys, devices or accounts are accessed. Room upgrades persist through shifts only until the Render room ends.
 
 To update a live deployment, redeploy the Render server from main and then paste the entire matching `supabase/dashboard/npc-dialogue.ts` bundle into the Supabase `npc-dialogue` Edge Function editor. No SQL change or new secrets are required.
+
+
+## Solo shifts and closing risks
+
+One player can start immediately with a $230 initial quota. 2–4-player rooms remain supported. The phone shows an explicit sales goal and three clear PRICE / BENEFIT / TRUST marks with character-specific hints. A customer still needs a relevant answer for each mark. The optional computer repair adds trust and ten points to the closing-odds formula. Deals can be attempted at any time for a server-side 3–95% success chance, without a model request; failed attempts cost 4 trust and add 8 suspicion. Each call gets at most three closing rolls and one per conversation turn. The UI removes repetitive out-of-universe disclaimers; the backend remains confined to generated game data and never accesses device contents or real wallets.

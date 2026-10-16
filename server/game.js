@@ -82,7 +82,7 @@ export class Game {
     if (!npc || player.call || room.used.includes(npc.id) || [...room.players.values()].some(p => p.call?.npcId === npc.id)) throw new Error('That line is unavailable');
     player.call = { id: randomBytes(8).toString('hex'), npcId: npc.id, trust: npc.trust, susp: npc.susp, turns: 0,
       busy:false, history:[{ who:'system', text:'Line connected. Introduce yourself using your own words.' }],
-      preoccupation:pick(preoccupations), mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
+      preoccupation:'Focus on the product and the customer’s needs', mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
       memory:[...(room.memories[npc.id] || [])], resolved:[], contributions:{}, pitches:[], ready:false, objection:npc.concerns[0].detail,
       offerPrice:npc.value, declineStreak:0, dealAttempts:0, lastDealTurn:-1, loot:this.makeLoot(),
       computer: this.computer(), requestTimes: [] };
