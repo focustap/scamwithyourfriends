@@ -250,7 +250,7 @@ export class Game {
       const bonus = room.upgrades.includes('commission') ? Math.floor(call.offerPrice * .20) : 0;
       room.earned += call.offerPrice + bonus; room.credits += call.offerPrice + bonus; room.wins++; player.earned += call.offerPrice + bonus;
     }
-    room.used.push(npc.id); room.results.unshift({ name: npc.name, product: npc.offer, player: player.name, win, value: win ? call.offerPrice : 0, reason });
+    room.used.push(npc.id); room.results.unshift({ name: npc.name, product: npc.offer, player: player.name, win, value: win ? call.offerPrice : 0, reason, bonus:win && room.upgrades.includes('commission') ? Math.floor(call.offerPrice*.20) : 0 });
     room.results = room.results.slice(0, 30); player.call = null;
     if (room.used.length === room.available.length) this.finish(room);
   }
