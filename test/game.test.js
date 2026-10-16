@@ -249,3 +249,53 @@ test('closing chance increases with trust, marks, agreement and optional repair'
   assert.ok(closingChance(n,repaired)>=closingChance(n,high));
   assert.equal(closingChance(n,{...low,offerPrice:1}),0);
 });
+
+test('35 unique customer profiles each have three concrete objections',()=>{
+  assert.equal(NPCS.length,35);
+  assert.equal(new Set(NPCS.map(n=>n.id)).size,35);
+  for(const n of NPCS){
+    assert.deepEqual(n.concerns.map(c=>c.id),['cost','usefulness','credibility']);
+    assert.ok(n.offer && n.background && n.personality && n.concerns.every(c=>c.detail.length>12));
+  }
+});
+test('five customers rotate without repeating across all three days',async t=>{
+  const { client,server }=await fixture(t);
+  const a=await client(),host=await emit(a,'room:create',{name:'Solo'});
+  const room=server.game.rooms.get(host.code),seen=new Set();
+  for(let day=1;day<=3;day++){
+    assert.equal((await emit(a,'shift:start')).ok,true);
+    assert.equal(room.day,day);
+    assert.equal(room.available.length,5);
+    for(const id of room.available){assert.ok(!seen.has(id));seen.add(id);}
+    assert.equal((await emit(a,'call:dial',{npcId:NPCS.find(n=>!room.available.includes(n.id)).id})).ok,false);
+    await emit(a,'shift:end');
+  }
+  assert.equal(seen.size,15);
+});
+test('three-day quota collects only on deadline, carries surplus and raises next target',async t=>{
+  const { client,server }=await fixture(t);
+  const a=await client(),host=await emit(a,'room:create',{name:'Saver'});
+  const room=server.game.rooms.get(host.code);
+  await emit(a,'shift:start');
+  assert.equal(room.day,1);assert.equal(room.quota,600);
+  room.credits=650;
+  await emit(a,'shift:end');
+  assert.equal(room.credits,650);assert.equal(room.quotaLevel,1);
+  await emit(a,'shift:start');assert.equal(room.day,2);await emit(a,'shift:end');
+  assert.equal(room.credits,650);
+  await emit(a,'shift:start');assert.equal(room.day,3);await emit(a,'shift:end');
+  assert.equal(room.outcome,'quota-passed');assert.equal(room.credits,50);assert.equal(room.quotaLevel,2);
+  await emit(a,'shift:start');assert.equal(room.day,1);assert.ok(room.quota>600);assert.equal(room.credits,50);
+});
+test('spending from bank can cause Day 3 failure and resets progress and apps',async t=>{
+  const {client,server}=await fixture(t);
+  const a=await client(),host=await emit(a,'room:create',{name:'Spender'});
+  const room=server.game.rooms.get(host.code);
+  room.credits=620;
+  assert.equal((await emit(a,'store:buy',{id:'commission'})).ok,true);
+  assert.equal(room.credits,440);
+  for(let i=0;i<3;i++){await emit(a,'shift:start');await emit(a,'shift:end');}
+  assert.equal(room.outcome,'quota-failed');assert.equal(room.quotaLevel,1);
+  assert.equal(room.credits,0);assert.deepEqual(room.upgrades,[]);
+  await emit(a,'shift:start');assert.equal(room.day,1);assert.equal(room.quota,600);
+});

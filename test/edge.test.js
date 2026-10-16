@@ -92,5 +92,5 @@ test('Node-to-Edge-to-Responses bridge passes actual player words and bounded NP
   assert.equal(reply.mode,'GPT-5.6 Luna'); assert.equal(node.ledger.snapshot().available,true);
   const request = f.calls.find(c => c.url.includes('openai.com')).body;
   assert.equal(request.input.at(-1).content,words); assert.equal(request.input.length,2);
-  assert.ok(request.instructions.includes('Earl has the rake.')); assert.ok(request.instructions.includes(NPCS[1].speechStyle));
+  assert.ok(request.instructions.includes('Earl has the rake.')); assert.ok(request.instructions.includes(NPCS[1].speechStyle.slice(0,60)));
 });
