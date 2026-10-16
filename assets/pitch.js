@@ -8,5 +8,5 @@ const tips = {
 };
 export function pitchChecklist(npc) {
   const ids=['cost','usefulness','credibility'],labels=['PRICE','BENEFIT','TRUST'];
-  return ids.map((id,i)=>({id,label:labels[i],hint:tips[npc.id]?.[i] ?? npc.concerns.find(c=>c.id===id)?.detail ?? ''}));
+  return ids.map((id,i)=>({id,label:labels[i],hint:i===0 ? 'Clearly state the total price you are offering.' : (tips[npc.id]?.[i] ?? npc.concerns.find(c=>c.id===id)?.detail ?? '')}));
 }
