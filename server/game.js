@@ -216,7 +216,7 @@ export class Game {
       throw new Error('Wrong PIN. Wait three seconds to retry');
     }
     if (data.kind === 'ssd') loot.ssdTaken = true; else loot.walletTaken = true;
-    const amount = LOOT_REWARDS[data.kind]; room.earned += amount; room.credits += amount; player.earned += amount;
+    const amount = LOOT_REWARDS[data.kind] * (room.upgrades.includes('turbo') ? 2 : 1); room.earned += amount; room.credits += amount; player.earned += amount;
     room.lootResults.unshift({ player:player.name,customer:NPCS.find(n => n.id === call.npcId).name,kind:data.kind,value:amount });
     room.lootResults = room.lootResults.slice(0,20); this.broadcast(room);
   }
@@ -247,7 +247,8 @@ export class Game {
     call.controller?.abort();
     const npc = NPCS.find(n => n.id === call.npcId);
     if (win) {
-      room.earned += call.offerPrice; room.credits += call.offerPrice; room.wins++; player.earned += call.offerPrice;
+      const bonus = room.upgrades.includes('commission') ? Math.floor(call.offerPrice * .20) : 0;
+      room.earned += call.offerPrice + bonus; room.credits += call.offerPrice + bonus; room.wins++; player.earned += call.offerPrice + bonus;
     }
     room.used.push(npc.id); room.results.unshift({ name: npc.name, product: npc.offer, player: player.name, win, value: win ? call.offerPrice : 0, reason });
     room.results = room.results.slice(0, 30); player.call = null;
