@@ -22,10 +22,11 @@ async function fixture(t, overrides = {}) {
   return { server, url, client, clients };
 }
 test('2–4 players, isolated rooms, host controls, locked lines, cooperative puzzles, synchronized payout', async t => {
-  const { client } = await fixture(t);
+  const { client,server } = await fixture(t);
   const [a, b, c, d, fifth] = await Promise.all(Array.from({ length: 5 }, () => client()));
   const created = await emit(a, 'room:create', { name: 'Host' }); assert.equal(created.ok, true);
-  assert.equal((await emit(a, 'shift:start')).ok, false);
+  assert.equal((await emit(a, 'shift:start')).ok, true);
+  await emit(a,'shift:end');
   for (const [i, s] of [b, c, d].entries()) assert.equal((await emit(s, 'room:join', { name: 'Desk ' + i, code: created.code })).ok, true);
   assert.equal((await emit(fifth, 'room:join', { name: 'Extra', code: created.code })).ok, false);
   const other = await emit(fifth, 'room:create', { name: 'Other room' });
@@ -34,7 +35,9 @@ test('2–4 players, isolated rooms, host controls, locked lines, cooperative pu
   assert.equal((await emit(a, 'call:dial', { npcId: 'doug' })).ok, true);
   assert.equal((await emit(b, 'call:dial', { npcId: 'doug' })).ok, false);
   assert.equal((await emit(b, 'call:dial', { npcId: 'mildred' })).ok, true);
-  assert.equal((await emit(a, 'call:deal', { earned: 999999, trust: 100 })).ok, false);
+  server.game.dealRoll=()=>100;
+  const reckless=await emit(a,'call:deal',{earned:999999,trust:100});
+  assert.equal(reckless.ok,true); assert.equal(reckless.closed,false);
   const before = (await emit(a, 'room:sync')).state;
   const pc = before.players.find(p => p.id === created.playerId).call.computer;
   assert.equal((await emit(c,'computer:answer',{ playerId:created.playerId,answer:pc.sequence[0] })).ok,false);
@@ -49,7 +52,8 @@ test('2–4 players, isolated rooms, host controls, locked lines, cooperative pu
   assert.equal((await emit(a, 'call:talk', { text: 'The antenna detects squirrels near the seven lawn flamingos.' })).ok, true);
   await pause(1250);
   assert.equal((await emit(a,'call:talk',{ text:'We can test this fictional device, and I cannot guarantee real results.' })).ok,true);
-  assert.equal((await emit(a, 'call:deal')).ok, true);
+  server.game.dealRoll=()=>1;
+  const closing=await emit(a,'call:deal'); assert.equal(closing.ok,true); assert.equal(closing.closed,true);
   assert.equal((await emit(a, 'call:deal')).ok, false);
   const shared = (await emit(b, 'room:sync')).state;
   assert.equal(shared.earned, 140); assert.equal(shared.wins, 1); assert.equal(shared.calls, 2);
@@ -179,9 +183,67 @@ test('negotiated sale pays the quoted price, not the NPC sticker price',async t 
   call.offerPrice=1;
   assert.equal((await emit(a,'call:deal')).ok,false);
   call.offerPrice=100;
-  assert.equal((await emit(a,'call:deal')).ok,true);
+  server.game.dealRoll=()=>1;
+  assert.equal((await emit(a,'call:deal')).closed,true);
   const state=(await emit(a,'room:sync')).state;
   assert.equal(state.earned,100);
   assert.equal(state.credits,100);
   assert.equal(state.results[0].value,100);
+});
+
+test('solo start, optional repairs, chance-based close and anti-spam', async t => {
+  const { client,server }=await fixture(t);
+  const a=await client(),host=await emit(a,'room:create',{name:'Solo'});
+  assert.equal((await emit(a,'shift:start')).ok,true);
+  let state=(await emit(a,'room:sync')).state;
+  assert.equal(state.quota,230);
+  assert.equal((await emit(a,'call:dial',{npcId:'mildred'})).ok,true);
+  const room=server.game.rooms.get(host.code), call=room.players.get(host.playerId).call;
+  assert.equal(call.computer.completed,false);
+  assert.equal(call.resolved.length,0);
+  state=(await emit(a,'room:sync')).state;
+  const starting=state.players[0].call.closeChance;
+  assert.ok(starting >= 3 && starting < 35);
+  assert.equal(state.players[0].call.canClose,true);
+  server.game.dealRoll=()=>100;
+  const first=await emit(a,'call:deal');
+  assert.equal(first.ok,true); assert.equal(first.closed,false);
+  assert.equal(first.chance,starting);
+  assert.equal(call.trust,23); assert.equal(call.susp,36);
+  assert.equal((await emit(a,'call:deal')).ok,false);
+  assert.equal(room.earned,0);
+  await emit(a,'call:talk',{ text:'Your total is $150, with no extra charges or renewals.' });
+  assert.equal(call.turns,1);
+  assert.equal((await emit(a,'room:sync')).state.players[0].call.canClose,true);
+  server.game.dealRoll=()=>1;
+  const second=await emit(a,'call:deal');
+  assert.equal(second.closed,true);
+  assert.equal(room.earned,150);
+  assert.equal(room.wins,1);
+});
+test('three failed closes end the call with no payout or extra AI requests',async t=>{
+  const {client,server}=await fixture(t);
+  const a=await client(),host=await emit(a,'room:create',{name:'Closer'});
+  await emit(a,'shift:start'); await emit(a,'call:dial',{npcId:'doug'});
+  const room=server.game.rooms.get(host.code);
+  server.game.dealRoll=()=>100;
+  assert.equal((await emit(a,'call:deal')).closed,false);
+  for(let i=0;i<2;i++){
+    await emit(a,'call:talk',{text:'I can offer you this product for $140, with clear terms. Message '+i});
+    const result=await emit(a,'call:deal');
+    assert.equal(result.closed,false);
+  }
+  assert.equal(room.players.get(host.playerId).call,null);
+  assert.equal(room.earned,0);
+  assert.equal(room.results[0].reason,'Three failed close attempts');
+});
+test('closing chance increases with trust, marks, agreement and optional repair',async()=>{
+  const {closingChance}=await import('../server/deals.js');
+  const {NPCS}=await import('../assets/npcs.js');
+  const n=NPCS[0],low={trust:27,susp:28,turns:0,offerPrice:150,resolved:[],ready:false,computer:{completed:false}};
+  const high={...low,trust:85,susp:3,turns:4,offerPrice:110,resolved:['cost','usefulness','credibility'],ready:true};
+  assert.ok(closingChance(n,low)<closingChance(n,high));
+  const repaired={...high,computer:{completed:true}};
+  assert.ok(closingChance(n,repaired)>=closingChance(n,high));
+  assert.equal(closingChance(n,{...low,offerPrice:1}),0);
 });

@@ -165,7 +165,7 @@ export class Game {
     const pc = call.computer;
     if (pc.completed) throw new Error('Computer already verified');
     if (Date.now() < pc.lockedUntil) throw new Error('Computer is rebooting. Wait three seconds.');
-    if (pc.stage === 'diagnostics') throw new Error('Run scan and repair in the simulated terminal first');
+    if (pc.stage === 'diagnostics') throw new Error('Run scan and repair in Terminal first');
     if (pc.stage === 'wires') {
       if (data.answer === pc.sequence[pc.progress]) pc.progress++;
       else { pc.progress = 0; pc.attempts++; pc.lockedUntil = Date.now() + 3000; call.susp = clamp(call.susp + 3); }
@@ -184,23 +184,23 @@ export class Game {
     if (!upgrade) throw new Error('Unknown software upgrade');
     if (room.upgrades.includes(upgrade.id)) throw new Error('App already installed');
     if (upgrade.id === 'wallet' && !room.upgrades.includes('ssd')) throw new Error('Install SSD Extractor first');
-    if (room.credits < upgrade.cost) throw new Error('Not enough fictional office credits');
+    if (room.credits < upgrade.cost) throw new Error('Not enough office credits');
     room.credits -= upgrade.cost; room.upgrades.push(upgrade.id); this.broadcast(room);
   }
   extract(socket,data) {
     const { room, player } = this.current(socket); this.playing(room);
-    if (!['ssd','wallet'].includes(data.kind) || !/^\d{4}$/.test(String(data.answer ?? ''))) throw new Error('Enter a four-digit simulation PIN');
+    if (!['ssd','wallet'].includes(data.kind) || !/^\d{4}$/.test(String(data.answer ?? ''))) throw new Error('Enter a four-digit PIN');
     const target = room.players.get(data.playerId || player.id), call = target?.call;
     if (!call) throw new Error('Open a customer line first');
     if (call.busy || !call.computer.completed) throw new Error('Verify the customer computer first');
     if (!room.upgrades.includes(data.kind)) throw new Error('Buy the required software in App Store');
     const loot = call.loot;
     if (Date.now() < loot.lockedUntil) throw new Error('Simulation locked. Try again shortly');
-    if (data.kind === 'wallet' && !loot.ssdTaken) throw new Error('Extract the simulated SSD first');
+    if (data.kind === 'wallet' && !loot.ssdTaken) throw new Error('Recover the SSD first');
     if (data.kind === 'ssd' ? loot.ssdTaken : loot.walletTaken) throw new Error('Already extracted from this customer');
     if (String(data.answer) !== (data.kind === 'ssd' ? loot.ssdPin : loot.walletPin)) {
       loot.attempts++; loot.lockedUntil = Date.now() + 3000;
-      throw new Error('Wrong simulation PIN. Wait three seconds to retry');
+      throw new Error('Wrong PIN. Wait three seconds to retry');
     }
     if (data.kind === 'ssd') loot.ssdTaken = true; else loot.walletTaken = true;
     const amount = LOOT_REWARDS[data.kind]; room.earned += amount; room.credits += amount; player.earned += amount;
