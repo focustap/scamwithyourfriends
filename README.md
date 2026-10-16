@@ -81,3 +81,12 @@ Apps: SSD Extractor and Wallet Cipher open recovery jobs; Commission Booster cos
 ## Lean NPC input
 
 The Node-to-Edge request now includes four recent conversation messages (two exchanges), the three latest durable memories, the customer identity/personality condensed to bounded strings, three specific objections, and prices, credited criteria and trust state. The Edge prompt is shortened while retaining strict structured persuasion judgments. Actual token savings depend on conversation and should be checked in Supabase settled input/output counts or OpenAI usage; no claimed fixed 500-token usage per reply. The OpenAI usage dashboard may update later than the game accounting display.
+
+
+## Rotating offers and desktop wallpapers
+
+Callers and sale products are now separate. Every new day the server gives each of the five selected callers a distinct random product from the full pool, excluding both that person's original product and the last product they encountered where possible. Prices, the benefit/trust pitch goals, dialogue context, closing odds, invoice and sale payouts follow the assigned product, never the caller's default. A customer's personal history persists separately for each customer/product pairing to prevent unrelated sales from contaminating conversation memory.
+
+Desktop wallpapers live in `assets/wallpapers/`. The default is `bgpic1.jpg`, with `bgpic2.jpg` through `bgpic5.jpg` available in the Wallpapers app and Start menu. Upload another JPG, PNG, WebP or SVG to that folder, then add `{"file":"name.jpg","name":"Display name"}` to `assets/wallpapers/manifest.json` for it to appear in the picker. The selection is stored per browser in `localStorage`, not on the room server; it persists across refreshes and doesn't affect other teammates.
+
+Sales goals are straightforward: PRICE (quote the offered amount), BENEFIT (say what this product does) and TRUST (give a reason or demo). Benefit/trust grading accepts concise, relevant answers; a hostile or threatening seller can cause the customer to end the call immediately when the AI chooses to leave. Initial closing odds are higher at lower trust, with repaired computers and strong sales pitches still improving the chance.

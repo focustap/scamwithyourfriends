@@ -83,3 +83,14 @@ h1 em{font-style:normal;color:var(--blue);text-shadow:0 0 55px #61d8ff42}
 .pitchMark p{font-size:11px;line-height:1.5;color:#b5c7d5;margin:7px 0 0}.closingPanel{border:1px solid #7b8359;border-radius:10px;background:#293021;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;margin:12px 0}
 .closingPanel strong{font-size:29px;color:#c7f4ae;display:block;margin:5px 0}.closingPanel p{font-size:11px;line-height:1.5;max-width:400px;color:#cad9c1;margin:0}.closingPanel button{flex-shrink:0;white-space:nowrap}
 @media(max-width:720px){.pitchMarks{grid-template-columns:1fr}.closingPanel{flex-direction:column;align-items:stretch}.closingPanel button{width:100%}}
+
+/* Personal desktop wallpapers from the office image gallery. */
+.desktop{background-repeat:no-repeat!important;background-position:center!important;background-size:cover!important}
+.wallpaperGallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin:18px 0}
+.wallpaperChoice{padding:8px;background:#162a3b;color:#e6f6ff;border:2px solid #37566e;border-radius:12px;cursor:pointer;display:grid;gap:8px;text-align:left;min-width:0}
+.wallpaperChoice img{width:100%;height:110px;object-fit:cover;display:block;border-radius:8px;background:#0d1d2c}
+.wallpaperChoice span{font-size:12px;padding:0 3px 4px}
+.wallpaperChoice.selected{border-color:#8ff3c7;box-shadow:0 0 0 2px #8ff3c733}
+.wallpaperChoice:hover{border-color:#9bc2e2}
+.wallpaperChoice:focus-visible{outline:3px solid #9af4d6;outline-offset:3px}
+@media(max-width:600px){.wallpaperGallery{grid-template-columns:repeat(2,minmax(0,1fr))}.wallpaperChoice img{height:90px}}
