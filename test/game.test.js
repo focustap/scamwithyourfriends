@@ -8,11 +8,14 @@ import { io } from 'socket.io-client';
 import { createApp } from '../server/index.js';
 import { configFromEnv } from '../server/config.js';
 import { NPCS } from '../assets/npcs.js';
+import { PRODUCTS } from '../assets/products.js';
+import { assignProducts } from '../server/products.js';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const emit = (s, event, data = {}) => s.timeout(5000).emitWithAck(event, data);
 async function fixture(t, overrides = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cold-call-game-'));
   const server = createApp({ ...configFromEnv({}), port: 0, dataDir, password: 'private-test', ...overrides });
+  server.game.productPicker=roster=>Object.fromEntries(roster.map(id=>[id,id]));
   server.game.rosterPicker=pool=>pool.filter(n=>['mildred','doug','kevin','priya','frank'].includes(n.id)).concat(pool.filter(n=>!['mildred','doug','kevin','priya','frank'].includes(n.id))).slice(0,5);
   server.http.listen(0, '127.0.0.1'); await once(server.http, 'listening');
   const url = 'http://127.0.0.1:' + server.http.address().port, clients = [];
@@ -298,4 +301,38 @@ test('spending from bank can cause Day 3 failure and resets progress and apps',a
   assert.equal(room.outcome,'quota-failed');assert.equal(room.quotaLevel,1);
   assert.equal(room.credits,0);assert.deepEqual(room.upgrades,[]);
   await emit(a,'shift:start');assert.equal(room.day,1);assert.equal(room.quota,600);
+});
+
+test('products and customers have separate identities and fresh offers are randomized',()=>{
+  assert.equal(PRODUCTS.length,35);
+  assert.equal(new Set(PRODUCTS.map(p=>p.id)).size,35);
+  for(const p of PRODUCTS) assert.deepEqual(p.concerns.map(c=>c.id),['cost','usefulness','credibility']);
+  const roster=['mildred','doug','kevin','priya','frank'];
+  const first=assignProducts(roster,{},PRODUCTS,()=>0);
+  assert.equal(new Set(Object.values(first)).size,5);
+  for(const id of roster) assert.notEqual(first[id],id);
+  const second=assignProducts(roster,first,PRODUCTS,()=>0);
+  for(const id of roster) {assert.notEqual(second[id],id);assert.notEqual(second[id],first[id]);}
+});
+test('one person may be pitched a different product with correct price, concerns and payout',async t=>{
+  const {client,server}=await fixture(t);
+  const a=await client(),host=await emit(a,'room:create',{name:'Pitcher'});
+  server.game.productPicker=roster=>Object.fromEntries(roster.map(id=>[id,id==='mildred'?'vince':id==='vince'?'mildred':id]));
+  assert.equal((await emit(a,'shift:start')).ok,true);
+  const room=server.game.rooms.get(host.code);
+  assert.equal(room.offers.mildred.offer,'Haunted mirror polishing');
+  assert.equal((await emit(a,'call:dial',{npcId:'mildred'})).ok,true);
+  const call=room.players.get(host.playerId).call;
+  assert.equal(call.offerPrice,210);assert.equal(call.product.id,'vince');
+  assert.match(call.objection,/price/i);
+  let snapshot=(await emit(a,'room:sync')).state;
+  assert.equal(snapshot.players[0].call.product.offer,'Haunted mirror polishing');
+  assert.equal(snapshot.offers.mildred.value,210);
+  call.trust=70;call.susp=0;call.ready=true;call.resolved=['cost','usefulness'];
+  server.game.dealRoll=()=>1;
+  assert.equal((await emit(a,'call:deal')).closed,true);
+  snapshot=(await emit(a,'room:sync')).state;
+  assert.equal(snapshot.credits,210);
+  assert.equal(snapshot.results[0].name,'Mildred P.');
+  assert.equal(snapshot.results[0].product,'Haunted mirror polishing');
 });

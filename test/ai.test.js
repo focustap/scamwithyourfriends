@@ -87,3 +87,18 @@ test('unrelated money and unrealistic prices do not earn the PRICE mark',()=>{
     assert.deepEqual(call.resolved,[],words);
   }
 });
+
+test('an AI-selected hangup can end an abusive call immediately but not arbitrarily',()=>{
+  const npc=NPCS[0],rejected={reply:'Please leave me alone.',intent:'abuse',concernId:null,evidence:'',quality:0,objection:'',disposition:'declines',wantsToEnd:true,memory:[]};
+  const call={resolved:[],contributions:{},pitches:[]};
+  assert.equal(evaluatePersuasion(npc,call,'Shut up you idiot, do what I say.',rejected).hangup,true);
+  const mild={...rejected,intent:'smalltalk'};
+  const other={resolved:[],contributions:{},pitches:[]};
+  assert.equal(evaluatePersuasion(npc,other,'I was hoping to hear more about you.',mild).hangup,false);
+});
+test('short relevant evidence and low-quality explanations can earn one benefit mark',()=>{
+  const npc=NPCS[0],call={resolved:[],contributions:{},pitches:[]};
+  const response={reply:'That sounds useful.',intent:'explanation',concernId:'usefulness',evidence:'repair your toaster',quality:1,objection:'How?',disposition:'considering',wantsToEnd:false,memory:[]};
+  evaluatePersuasion(npc,call,'We will repair your toaster promptly.',response);
+  assert.deepEqual(call.resolved,['usefulness']);
+});
