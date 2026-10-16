@@ -78,7 +78,7 @@ export class Game {
     } else room.day++;
     room.shift++; room.phase='playing'; room.earned=0; room.outcome='';
     const remaining = NPCS.filter(n=>!room.cycleSeen.includes(n.id));
-    room.available=dailyRoster(remaining.length>=5 ? remaining : NPCS).map(n=>n.id);
+    room.available=(this.rosterPicker ? this.rosterPicker(remaining.length>=5 ? remaining : NPCS,5) : dailyRoster(remaining.length>=5 ? remaining : NPCS)).map(n=>n.id);
     room.cycleSeen.push(...room.available);
     room.endsAt = Date.now() + this.config.shiftSeconds * 1000; room.nextEvent = Date.now() + 35000;
     room.calls = 0; room.wins = 0; room.used = []; room.results = []; room.event = 'The shift is live. Management expects results.';

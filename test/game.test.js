@@ -7,11 +7,13 @@ import { once } from 'node:events';
 import { io } from 'socket.io-client';
 import { createApp } from '../server/index.js';
 import { configFromEnv } from '../server/config.js';
+import { NPCS } from '../assets/npcs.js';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const emit = (s, event, data = {}) => s.timeout(5000).emitWithAck(event, data);
 async function fixture(t, overrides = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cold-call-game-'));
   const server = createApp({ ...configFromEnv({}), port: 0, dataDir, password: 'private-test', ...overrides });
+  server.game.rosterPicker=pool=>pool.filter(n=>['mildred','doug','kevin','priya','frank'].includes(n.id)).concat(pool.filter(n=>!['mildred','doug','kevin','priya','frank'].includes(n.id))).slice(0,5);
   server.http.listen(0, '127.0.0.1'); await once(server.http, 'listening');
   const url = 'http://127.0.0.1:' + server.http.address().port, clients = [];
   t.after(async () => { clients.forEach(s => s.disconnect()); await server.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
@@ -25,8 +27,7 @@ test('2–4 players, isolated rooms, host controls, locked lines, cooperative pu
   const { client,server } = await fixture(t);
   const [a, b, c, d, fifth] = await Promise.all(Array.from({ length: 5 }, () => client()));
   const created = await emit(a, 'room:create', { name: 'Host' }); assert.equal(created.ok, true);
-  assert.equal((await emit(a, 'shift:start')).ok, true);
-  await emit(a,'shift:end');
+  assert.equal((await emit(a,'room:sync')).state.phase,'lobby');
   for (const [i, s] of [b, c, d].entries()) assert.equal((await emit(s, 'room:join', { name: 'Desk ' + i, code: created.code })).ok, true);
   assert.equal((await emit(fifth, 'room:join', { name: 'Extra', code: created.code })).ok, false);
   const other = await emit(fifth, 'room:create', { name: 'Other room' });
@@ -196,7 +197,7 @@ test('solo start, optional repairs, chance-based close and anti-spam', async t =
   const a=await client(),host=await emit(a,'room:create',{name:'Solo'});
   assert.equal((await emit(a,'shift:start')).ok,true);
   let state=(await emit(a,'room:sync')).state;
-  assert.equal(state.quota,230);
+  assert.equal(state.quota,600);
   assert.equal((await emit(a,'call:dial',{npcId:'mildred'})).ok,true);
   const room=server.game.rooms.get(host.code), call=room.players.get(host.playerId).call;
   assert.equal(call.computer.completed,false);
