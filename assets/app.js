@@ -2,6 +2,7 @@ import { NPCS } from './npcs.js';
 import { pitchChecklist } from './pitch.js';
 import { Desktop, calculate } from './desktop.js';
 import { KokoroVoice } from './kokoro.js';
+import { wallpaperUrl, savedWallpaper, loadWallpapers } from './wallpapers.js';
 const $ = id => document.getElementById(id);
 const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => '$' + Math.max(0, Math.floor(n)).toLocaleString('en-US');
@@ -12,7 +13,17 @@ let program = 'terminal', file = 'brief', kokoroStatus = 'Browser voices ready.'
 const area = document.querySelector('.deskgrid'); area.innerHTML = '';
 const taskbar = document.createElement('div'); taskbar.className = 'taskbar'; document.querySelector('.desktop').append(taskbar);
 const desktop = new Desktop(area,taskbar);
-const shortcuts=[['phone','☎','PHONE'],['computer','▣','COMPUTER'],['ledger','▤','LEDGER'],['files','▥','FILES'],['manual','?','HELP'],['operations','◫','OPS'],['store','▦','APP STORE'],['vault','◈','VAULT LAB'],['calculator','＋','CALC'],['notes','✎','NOTES'],['settings','⚙','SETTINGS']];
+let currentWallpaper=savedWallpaper(window.localStorage), wallpaperCatalog=[];
+const displayWallpaper=filename=>{
+  const url=wallpaperUrl(filename);
+  if(!url)return;
+  document.querySelector('.desktop').style.backgroundImage='linear-gradient(#07152322,#07152344),url("'+url+'")';
+  document.querySelector('.desktop').style.backgroundPosition='center';
+  document.querySelector('.desktop').style.backgroundSize='cover';
+};
+displayWallpaper(currentWallpaper);
+loadWallpapers().then(items=>{wallpaperCatalog=items;if(room && desktop.visible('wallpaper'))render();});
+const shortcuts=[['phone','☎','PHONE'],['computer','▣','COMPUTER'],['ledger','▤','LEDGER'],['files','▥','FILES'],['manual','?','HELP'],['operations','◫','OPS'],['store','▦','APP STORE'],['vault','◈','VAULT LAB'],['calculator','＋','CALC'],['notes','✎','NOTES'],['wallpaper','▧','WALLPAPERS'],['settings','⚙','SETTINGS']];
 const shortcutTray=document.createElement('nav'); shortcutTray.className='desktopShortcuts'; shortcutTray.setAttribute('aria-label','Desktop shortcuts');
 for (const [id,icon,label] of shortcuts) {const button=document.createElement('button');button.className='desktopShortcut';button.dataset.shortcut=id;button.innerHTML='<span>'+icon+'</span><small>'+label+'</small>';button.title='Open '+label;shortcutTray.append(button);}
 area.append(shortcutTray);
@@ -24,7 +35,7 @@ area.append(startMenu);startButton.onclick=()=>{startMenu.hidden=!startMenu.hidd
 const kokoro = new KokoroVoice(text => { kokoroStatus = text; if ($('kokoroStatus')) $('kokoroStatus').textContent = text; });
 const own = () => room?.players.find(p => p.id === playerId);
 const call = () => own()?.call;
-const npcFor = c => NPCS.find(n => n.id === c?.npcId);
+const npcFor = c => { const npc=NPCS.find(n=>n.id===c?.npcId); return npc && c?.product ? {...npc,offer:c.product.offer,value:c.product.value,concerns:c.product.concerns} : npc; };
 const online = () => !!socket?.connected;
 const sessionKey = url => 'cold-call-session:' + url;
 function saved(key) { try { return sessionStorage.getItem(key); } catch { return null; } }
@@ -110,7 +121,7 @@ function stats() {
   $('connectionBadge').textContent = online() ? `ROOM ${room.code}` : 'RECONNECTING';
 }
 function openApp(id) {
-  const names = { phone:'PHONE',computer:'CUSTOMER COMPUTER',ledger:'SALES LEDGER',files:'FILE EXPLORER',manual:'HANDBOOK',settings:'SETTINGS',calculator:'CALCULATOR',notes:'NOTEPAD',operations:'OPERATIONS',store:'APP STORE',vault:'VAULT LAB' };
+  const names = { phone:'PHONE',computer:'CUSTOMER COMPUTER',ledger:'SALES LEDGER',files:'FILE EXPLORER',manual:'HANDBOOK',settings:'SETTINGS',calculator:'CALCULATOR',notes:'NOTEPAD',operations:'OPERATIONS',store:'APP STORE',vault:'VAULT LAB',wallpaper:'WALLPAPERS' };
   app = id; desktop.open(id,names[id],id === 'phone' ? 'leftPanel' : id === 'operations' ? 'rightPanel' : id + 'Panel');
 }
 function render() {
@@ -128,6 +139,7 @@ function render() {
   if ($('vaultPanel')) renderVault($('vaultPanel'));
   if ($('manualPanel')) $('manualPanel').innerHTML = '<div class="manual"><h3>YOUR GOAL</h3><p>Call a customer and sell the product shown at the top of Phone. The listed price is your starting point.</p><h3>THREE PITCH POINTS</h3><p>PRICE: explain what they pay. BENEFIT: explain what the product does. TRUST: answer doubts about whether it works or how they can cancel. Each customer has a specific tip for each point on Phone.</p><h3>CLOSE WHENEVER YOU WANT</h3><p>The Close Chance percentage is based on trust, suspicion, answered points, customer agreement, the price and optional computer repairs. You can try immediately, but failed closes lower trust and raise suspicion. One attempt per conversation turn, three maximum. Closing never uses an AI request.</p><h3>EXTRA WORK</h3><p>Computer repair adds trust and improves closing odds, but is not required. Buy upgrades in App Store and run recovery jobs in Vault Lab for additional earnings.</p><h3>PLAY SOLO OR TOGETHER</h3><p>Start alone or invite up to three others. Your team shares the quota, credits and upgrades.</p><h3>VOICE</h3><p>Click TALK or type. Hands-free can be enabled in Settings.</p></div>';
   if ($('settingsPanel')) renderSettings($('settingsPanel'));
+  if ($('wallpaperPanel')) renderWallpaper($('wallpaperPanel'));
   if ($('calculatorPanel')) $('calculatorPanel').innerHTML = '<div class="sectiontitle">DESKTOP CALCULATOR</div><p class="helptext">Use this to reconcile a customer invoice. Supports parentheses and + − * /.</p><form id="calculatorForm"><input id="calculatorInput" aria-label="Calculation" maxlength="80" placeholder="(40 * 3) + 7 - 2"><button class="actionbtn">CALCULATE</button></form><output id="calculatorResult" class="calcResult"></output>';
   if ($('notesPanel')) $('notesPanel').innerHTML = '<label class="sectiontitle" for="deskNotes">PRIVATE DESK NOTES</label><textarea id="deskNotes" maxlength="3000" placeholder="Keep customer details and objections here…"></textarea><p class="tiny soft">Stored in this tab only. Notes are not sent to the model.</p>';
   renderOperations(); renderSummary(); wire();
@@ -143,7 +155,7 @@ function renderPhone(p) {
   if (!c) {
     p.innerHTML = `<div class="sectiontitle">${room.phase === 'playing' ? 'AVAILABLE CONTACTS' : 'PRIVATE OFFICE LOBBY'}</div><p class="helptext">${room.phase === 'playing' ? 'Day ${room.day}/3: choose from five customers. Earn enough before Day 3 ends.' : 'Start solo or share your room code with up to three friends.'}</p>${NPCS.filter(n=>room.available?.includes(n.id)).map(n => {
       const owner = room.players.find(p => p.call?.npcId === n.id), used = room.used.includes(n.id);
-      return `<div class="contact ${used ? 'done' : ''}"><div class="avatar">${n.emoji}</div><div class="contactBody"><b>${safe(n.name)}</b><small>${n.age} · ${safe(n.occupation)}<br>${owner ? 'On call with ' + safe(owner.name) : used ? 'Call finished' : safe(n.offer) + ' · ' + money(n.value)}</small></div><button data-call="${n.id}" ${room.phase !== 'playing' || owner || used || !online() ? 'disabled' : ''}>CALL →</button></div>`;
+      return `<div class="contact ${used ? 'done' : ''}"><div class="avatar">${n.emoji}</div><div class="contactBody"><b>${safe(n.name)}</b><small>${n.age} · ${safe(n.occupation)}<br>${owner ? 'On call with ' + safe(owner.name) : used ? 'Call finished' : safe((room.offers?.[n.id] || n).offer) + ' · ' + money((room.offers?.[n.id] || n).value)}</small></div><button data-call="${n.id}" ${room.phase !== 'playing' || owner || used || !online() ? 'disabled' : ''}>CALL →</button></div>`;
     }).join('')}<p class="tiny soft">${room.aiEnabled ? 'Supabase AI configured. Turn labels identify live or mock replies. Errors never trigger canned dialogue.' : 'PRACTICE • AI disabled. No OpenAI calls.'}</p>`; return;
   }
   const n=npcFor(c),canDeal=c.canClose && online();
@@ -195,6 +207,15 @@ function renderFiles(p) {
   const n = npcFor(call()) || NPCS[0];
   p.innerHTML = `<div class="sectiontitle">FILE EXPLORER</div><div class="programTabs"><button class="outline" data-file="brief">customer_brief.txt</button><button class="outline" data-file="concerns">concerns.txt</button><button class="outline" data-file="benefits">benefits.txt</button></div><article class="fileViewer">${file === 'benefits' ? '<p>File is empty. Management calls this a benefit.</p>' : file === 'concerns' ? n.concerns.map(c => `<p><b>${safe(c.id)}</b>: ${safe(c.detail)}</p>`).join('') : `<h2>${safe(n.name)}, ${n.age}</h2><p>${safe(n.occupation)}</p><p>${safe(n.background)}</p><p>${safe(n.personality)}</p><p>Humor: ${safe(n.humor)}</p><p>Speech: ${safe(n.speechStyle)}</p>`}</article>`;
 }
+function renderWallpaper(p) {
+  const items=wallpaperCatalog.length?wallpaperCatalog:[
+    ...['bgpic1.jpg','bgpic2.jpg','bgpic3.jpg','bgpic4.jpg','bgpic5.jpg'].map((file,i)=>({file,name:'Wallpaper '+(i+1)}))
+  ];
+  p.innerHTML='<div class="sectiontitle">DESKTOP PERSONALIZATION</div><h2>WALLPAPERS</h2><p class="helptext">Choose your desktop background. Your selection stays on this browser.</p><div class="wallpaperGallery">'+items.map(item=>{
+    const selected=currentWallpaper===item.file,url=wallpaperUrl(item.file);
+    return '<button type="button" class="wallpaperChoice '+(selected?'selected':'')+'" data-wallpaper="'+safe(item.file)+'" aria-pressed="'+selected+'"><img src="'+safe(url)+'" alt="" loading="lazy"><span>'+safe(item.name)+(selected?' ✓':'')+'</span></button>';
+  }).join('')+'</div><p class="helptext">Additional wallpapers can be added in the assets/wallpapers folder and listed in manifest.json.</p>';
+}
 function renderSettings(p) {
   const supported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   p.innerHTML = `<div class="sectiontitle">AUDIO & ACCESSIBILITY</div><div class="setting"><label for="voiceSetting">Speak NPC replies</label><input id="voiceSetting" type="checkbox" ${settings.voice ? 'checked' : ''}></div><div class="setting"><label for="handsfreeSetting">Hands-free conversation</label><input id="handsfreeSetting" type="checkbox" ${settings.handsfree ? 'checked' : ''} ${!supported ? 'disabled' : ''}></div><div class="setting"><label for="rateSetting">Speech speed</label><select id="rateSetting" class="outline">${[.8,1,1.2].map(r => `<option value="${r}" ${r === settings.rate ? 'selected' : ''}>${r}×</option>`).join('')}</select></div><div class="setting"><label for="voiceEngine">Voice engine</label><select id="voiceEngine" class="outline"><option value="browser">Browser voices</option><option value="kokoro" ${kokoro.ready ? '' : 'disabled'} ${settings.engine === 'kokoro' ? 'selected' : ''}>Kokoro (local)</option></select></div><p class="helptext">Kokoro is optional: downloads a large voice model to your browser from Hugging Face and code from jsDelivr. Runs locally in a worker using WASM. First download can take minutes; speed depends on your computer. No paid voice API.</p><button id="loadKokoro" class="outline" ${kokoro.loading || kokoro.ready ? 'disabled' : ''}>${kokoro.ready ? 'KOKORO READY' : 'DOWNLOAD & ENABLE KOKORO'}</button><p class="tiny soft" id="kokoroStatus">${safe(kokoroStatus)}</p><div class="notice">${supported ? 'Recognition available. Click TALK to grant permission.' : 'Recognition unavailable. Type replies, or try Chrome / Edge.'} Recognition may use your browser provider’s servers. Only transcripts go to this game and, in live mode, Supabase/OpenAI.</div><button id="testVoice" class="outline">TEST SPEAKERS</button><button id="stopVoice" class="outline">STOP AUDIO</button>`;
@@ -221,6 +242,7 @@ function wire() {
   bind('hangBtn', () => { stopListening(); stopSpeech(); action('call:hangup'); }); bind('micBtn', mic);
   bind('dealBtn', async () => { stopListening(); const outcome=await action('call:deal'); if(outcome && !outcome.closed) notify('Close rejected at '+outcome.chance+'% odds. Pitch again to retry.'); });
   bind('openStore',()=>{openApp('store');render();});
+  document.querySelectorAll('[data-wallpaper]').forEach(button=>button.onclick=()=>{const filename=button.dataset.wallpaper;if(!wallpaperUrl(filename))return;currentWallpaper=filename;try{localStorage.setItem('cold-call-wallpaper',filename);}catch{}displayWallpaper(filename);render();});
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>action('store:buy',{id:b.dataset.buy}));
   if($('vaultTarget'))$('vaultTarget').onchange=e=>{vaultTarget=e.target.value;render();};
   for(const kind of ['ssd','wallet'])if($(kind+'Form'))$(kind+'Form').onsubmit=e=>{e.preventDefault();action('loot:extract',{playerId:vaultTarget,kind,answer:$(kind+'Pin').value});};
@@ -314,4 +336,4 @@ $('howBtn').onclick = () => {
 setInterval(() => { stats(); $('osClock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }, 500);
 window.addEventListener('pagehide', () => { stopListening(); stopSpeech(); });
 
-for (const [id,icon,label] of [['calculator','＋','CALC'],['notes','✎','NOTES'],['operations','▤','OPS'],['store','▦','STORE'],['vault','◈','VAULT']]) { const button = document.createElement('button'); button.className = 'appicon'; button.dataset.app = id; button.innerHTML = icon + '<small>' + label + '</small>'; button.onclick = () => { openApp(id); render(); }; document.querySelector('.sidebar').append(button); }
+for (const [id,icon,label] of [['calculator','＋','CALC'],['notes','✎','NOTES'],['operations','▤','OPS'],['store','▦','STORE'],['vault','◈','VAULT'],['wallpaper','▧','WALLPAPER']]) { const button = document.createElement('button'); button.className = 'appicon'; button.dataset.app = id; button.innerHTML = icon + '<small>' + label + '</small>'; button.onclick = () => { openApp(id); render(); }; document.querySelector('.sidebar').append(button); }
