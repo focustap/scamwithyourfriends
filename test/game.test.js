@@ -229,7 +229,8 @@ test('three failed closes end the call with no payout or extra AI requests',asyn
   server.game.dealRoll=()=>100;
   assert.equal((await emit(a,'call:deal')).closed,false);
   for(let i=0;i<2;i++){
-    await emit(a,'call:talk',{text:'I can offer you this product for $140, with clear terms. Message '+i});
+    if (i) await pause(1250);
+    assert.equal((await emit(a,'call:talk',{text:'I can offer you this product for $140, with clear terms. Message '+i})).ok,true);
     const result=await emit(a,'call:deal');
     assert.equal(result.closed,false);
   }
