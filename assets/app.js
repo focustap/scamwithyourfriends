@@ -302,7 +302,7 @@ $('lobbyForm').onsubmit = e => { e.preventDefault(); connect(false); };
 $('joinBtn').onclick = () => { if ($('lobbyForm').reportValidity()) connect(true); };
 $('exitBtn').onclick = leave;
 $('howBtn').onclick = () => {
-  $('overlay').innerHTML = '<div class="modal"><div class="kicker">EMPLOYEE ORIENTATION</div><h2>MAKE THE CALL.</h2><p>Connect to your host’s backend, create a private room, and share its code. 1–4 players share a quota.</p><p>Hit PRICE, BENEFIT and TRUST, then try closing at any time. Computer repairs give a bonus but aren't required. TALK uses browser recognition; NPCs speak with browser voices. AI is enabled and budgeted by your host.</p><button id="closeHow" class="bigbtn">GOT IT →</button></div>';
+  $('overlay').innerHTML = '<div class="modal"><div class="kicker">EMPLOYEE ORIENTATION</div><h2>MAKE THE CALL.</h2><p>Connect to your host’s backend, create a private room, and share its code. 1–4 players share a quota.</p><p>Hit PRICE, BENEFIT and TRUST, then try closing at any time. Computer repairs give a bonus but are optional. TALK uses browser recognition; NPCs speak with browser voices. AI is enabled and budgeted by your host.</p><button id="closeHow" class="bigbtn">GOT IT →</button></div>';
   $('overlay').classList.remove('hidden'); $('closeHow').onclick = () => $('overlay').classList.add('hidden');
 };
 setInterval(() => { stats(); $('osClock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }, 500);
