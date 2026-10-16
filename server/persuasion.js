@@ -4,7 +4,10 @@ import { parseOffer, priceRange } from './pricing.js';
 function isQuotedSalePrice(npc, words) {
   const price = parseOffer(words), { min, max } = priceRange(npc.value);
   if (price === null || price < min || price > max) return false;
-  return /\b(?:sell(?:ing)?|offer(?:ing)?|charg(?:e|ing)|price|cost|total|pay(?:ment)?|for)\b.{0,55}(?:\$\s*\d{1,4}|\b\d{1,4}\s*(?:dollars?|bucks?))\b|\b\d{1,4}\s*(?:dollars?|bucks?)\b.{0,40}\b(?:price|cost|total|offer)\b/i.test(words);
+  const hasAmount = /\$\s*\d{1,4}\b|\b\d{1,4}\s*\$|\b\d{1,4}\s*(?:dollars?|bucks?)\b/i.test(words);
+  const salesContext = /\b(?:sell(?:ing)?|offer(?:ing)?|charg(?:e|ing)|price|cost|total|pay(?:ment)?|purchase|buy)\b/i.test(words)
+    || /\b(?:for|at)\s+(?:\$\s*\d{1,4}|\d{1,4}\s*(?:\$|dollars?|bucks?))/i.test(words);
+  return hasAmount && salesContext;
 }
 function asksCustomerNeeds(words) {
   return /\?/.test(words) && /\b(?:what|why|how|which|when)\b|\b(?:do you need|are you worried|would you prefer|what matters to you)\b/i.test(words);
