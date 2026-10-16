@@ -89,7 +89,7 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await b.reload(); await b.locator('#enterBtn').click();
   await expect(b.locator('#app')).toBeVisible(); await expect(b.locator('#earnings')).toHaveText(earnings);
   await a.locator('#endShift').click();
-  await expect(a.locator('#overlay')).toContainText('DAY 1 COMPLETE'); await expect(b.locator('#overlay')).toContainText('SHIFT COMPLETE');
+  await expect(a.locator('#overlay')).toContainText('DAY 1 COMPLETE'); await expect(b.locator('#overlay')).toContainText('DAY 1 COMPLETE');
   await a.locator('#nextShift').click(); await expect(a.locator('#earnings')).toHaveText('$0');
   await expect(b.locator('[data-call]').first()).toBeEnabled();
   expect(errors).toEqual([]); await ctxA.close(); await ctxB.close();
