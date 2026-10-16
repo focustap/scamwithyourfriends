@@ -6,7 +6,7 @@ export function assignProducts(customerIds, previous = {}, products = PRODUCTS, 
   if (products.length < customerIds.length) throw new Error('Not enough products');
   const used = new Set(), offers = {};
   for (const customerId of customerIds) {
-    let candidates = products.filter(p => !used.has(p.id) && p.id !== previous[customerId]);
+    let candidates = products.filter(p => !used.has(p.id) && p.id !== previous[customerId] && p.id !== customerId);
     if (!candidates.length) candidates = products.filter(p => !used.has(p.id));
     const selected = candidates[rand(candidates.length)];
     offers[customerId] = selected.id;
