@@ -145,7 +145,8 @@ test('wallpaper app loads custom GitHub images and saves background across page 
   await page.goto('http://127.0.0.1:4173/scamwithyourfriends/');
   await page.locator('#enterBtn').click();
   await expect(page.locator('#app')).toBeVisible();
-  await page.locator('[data-shortcut="wallpaper"]').first().click();
+  await page.locator('.startButton').click();
+  await page.locator('.startMenu [data-shortcut="wallpaper"]').click();
   await expect(page.locator('#wallpaperPanel [data-wallpaper]')).toHaveCount(5);
   await page.locator('#wallpaperPanel [data-wallpaper="bgpic2.jpg"]').click();
   await expect(page.locator('.desktop')).toHaveCSS('background-image',/bgpic2.jpg/);
