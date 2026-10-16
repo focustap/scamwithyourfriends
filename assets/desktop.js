@@ -1,8 +1,10 @@
+import { appIcon } from './apps.js';
+
 export class Desktop {
   constructor(area,bar) { this.area = area; this.bar = bar; this.windows = new Map(); this.z = 1; }
   open(id,title,bodyId) {
     if (this.windows.has(id)) { const existing = this.windows.get(id); existing.hidden = false; this.focus(id); return existing; }
-    const win = document.createElement('section'); win.className = 'window osWindow'; win.dataset.window = id;
+    const win = document.createElement('section'); win.className = 'window osWindow'; win.dataset.window = id; win.dataset.appKey = id;
     win.setAttribute('aria-label',title); win.style.left = (id === 'operations' ? Math.max(22,this.area.clientWidth - 450) : 22 + this.windows.size * 22) + 'px';
     win.style.top = (id === 'operations' ? 22 : 22 + this.windows.size * 18) + 'px';
     if (id === 'operations') win.classList.add('operationsWindow');
@@ -12,7 +14,9 @@ export class Desktop {
     for (const [symbol,action] of [['−','Minimize'],['□','Maximize'],['×','Close']]) {
       const button = document.createElement('button'); button.textContent = symbol; button.title = action + ' ' + title;
       button.setAttribute('aria-label',action + ' ' + title); button.onclick = () => {
-        if (action === 'Maximize') win.classList.toggle('maximized'); else win.hidden = true;
+        if (action === 'Maximize') { win.classList.toggle('maximized'); return; }
+        if (action === 'Minimize') { win.hidden = true; return; }
+        win.remove();this.windows.delete(id);this.bar.querySelector('[data-task="'+id+'"]')?.remove();
       }; controls.append(button);
     }
     header.append(controls); win.append(header);
@@ -27,7 +31,8 @@ export class Desktop {
       header.addEventListener('pointermove',move); header.addEventListener('pointerup',end); header.addEventListener('pointercancel',end);
     };
     this.area.append(win); this.windows.set(id,win);
-    const task = document.createElement('button'); task.className = 'taskButton'; task.dataset.task = id; task.textContent = title;
+    const task = document.createElement('button'); task.className = 'taskButton'; task.dataset.task = id; task.dataset.appKey = id;
+    task.innerHTML='<span class="taskIcon">'+appIcon(id)+'</span><span>'+title+'</span>';
     task.onclick = () => { win.hidden = false; this.focus(id); }; this.bar.append(task); this.focus(id); return win;
   }
   focus(id) {

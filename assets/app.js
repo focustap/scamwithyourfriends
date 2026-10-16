@@ -3,10 +3,11 @@ import { pitchChecklist } from './pitch.js';
 import { Desktop, calculate } from './desktop.js';
 import { KokoroVoice } from './kokoro.js';
 import { wallpaperUrl, savedWallpaper, loadWallpapers } from './wallpapers.js';
+import { APPLICATIONS, APP_BY_ID, appIcon } from './apps.js';
 const $ = id => document.getElementById(id);
 const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => '$' + Math.max(0, Math.floor(n)).toLocaleString('en-US');
-let socket, room, playerId, app = 'phone', computerTarget, serverOffset = 0;
+let socket, room, playerId, app = null, computerTarget, serverOffset = 0;
 let recognition, utterance, speaking = false, finalSpeaking = false, listening = false, toastTimer, lastCallId, lastEvent, connecting = false;
 const settings = { voice:true,handsfree:false,rate:1,engine:'browser' };
 let program = 'terminal', file = 'brief', kokoroStatus = 'Browser voices ready.';
@@ -23,14 +24,26 @@ const displayWallpaper=filename=>{
 };
 displayWallpaper(currentWallpaper);
 loadWallpapers().then(items=>{wallpaperCatalog=items;if(room && desktop.visible('wallpaper'))render();});
-const shortcuts=[['phone','☎','PHONE'],['computer','▣','COMPUTER'],['ledger','▤','LEDGER'],['files','▥','FILES'],['manual','?','HELP'],['operations','◫','OPS'],['store','▦','APP STORE'],['vault','◈','VAULT LAB'],['calculator','＋','CALC'],['notes','✎','NOTES'],['wallpaper','▧','WALLPAPERS'],['settings','⚙','SETTINGS']];
-const shortcutTray=document.createElement('nav'); shortcutTray.className='desktopShortcuts'; shortcutTray.setAttribute('aria-label','Desktop shortcuts');
-for (const [id,icon,label] of shortcuts) {const button=document.createElement('button');button.className='desktopShortcut';button.dataset.shortcut=id;button.innerHTML='<span>'+icon+'</span><small>'+label+'</small>';button.title='Open '+label;shortcutTray.append(button);}
+const shortcutTray=document.createElement('nav');
+shortcutTray.className='desktopShortcuts'; shortcutTray.setAttribute('aria-label','Desktop shortcuts');
+for(const item of APPLICATIONS) {
+  const button=document.createElement('button');
+  button.className='desktopShortcut';button.dataset.shortcut=item.id;button.dataset.appKey=item.id;
+  button.innerHTML='<span class="appIconTile">'+appIcon(item.id)+'</span><small>'+item.label+'</small>';
+  button.title='Open '+item.name;button.setAttribute('aria-label','Open '+item.name);
+  shortcutTray.append(button);
+}
 area.append(shortcutTray);
-const startButton=document.createElement('button');startButton.className='startButton';startButton.textContent='▦ START';taskbar.prepend(startButton);
-const startMenu=document.createElement('nav');startMenu.className='startMenu';startMenu.hidden=true;startMenu.setAttribute('aria-label','Start menu');
-startMenu.innerHTML='<b>COLD CALL OS</b><small>APPS // PRIVATE OFFICE</small>'+shortcuts.map(([id,icon,label])=>'<button data-shortcut="'+id+'">'+icon+' '+label+'</button>').join('');
-area.append(startMenu);startButton.onclick=()=>{startMenu.hidden=!startMenu.hidden;};
+const launchpad=document.createElement('aside');launchpad.id='desktopLaunchpad';launchpad.className='desktopLaunchpad';
+launchpad.setAttribute('aria-label','Shift controls');area.append(launchpad);
+const startButton=document.createElement('button');startButton.className='startButton';
+startButton.textContent='▦ START';taskbar.prepend(startButton);
+const startMenu=document.createElement('nav');startMenu.className='startMenu';startMenu.hidden=true;
+startMenu.setAttribute('aria-label','Start menu');
+startMenu.innerHTML='<div class="startMenuBrand"><b>COLD CALL OS</b><small>OFFICE APPLICATIONS</small></div>'+
+  APPLICATIONS.map(item=>'<button data-shortcut="'+item.id+'" data-app-key="'+item.id+'"><span class="appIconTile">'+appIcon(item.id)+'</span><span>'+item.name+'<small>'+item.group+'</small></span></button>').join('');
+area.append(startMenu);
+startButton.onclick=()=>{startMenu.hidden=!startMenu.hidden;};
 
 const kokoro = new KokoroVoice(text => { kokoroStatus = text; if ($('kokoroStatus')) $('kokoroStatus').textContent = text; });
 const own = () => room?.players.find(p => p.id === playerId);
@@ -122,16 +135,36 @@ function stats() {
 }
 function openApp(id) {
   const names = { phone:'PHONE',computer:'CUSTOMER COMPUTER',ledger:'SALES LEDGER',files:'FILE EXPLORER',manual:'HANDBOOK',settings:'SETTINGS',calculator:'CALCULATOR',notes:'NOTEPAD',operations:'OPERATIONS',store:'APP STORE',vault:'VAULT LAB',wallpaper:'WALLPAPERS' };
+  if(!APP_BY_ID[id])return;
   app = id; desktop.open(id,names[id],id === 'phone' ? 'leftPanel' : id === 'operations' ? 'rightPanel' : id + 'Panel');
+}
+function renderLaunchpad() {
+  if(!room)return;
+  const host=room.host===playerId,connected=room.players.filter(p=>p.connected).length;
+  const waiting=room.phase==='lobby',active=room.phase==='playing',complete=room.phase==='finished';
+  const nextDay=complete?(room.outcome==='quota-failed'?'RESTART RUN':room.day===3?'START NEXT QUOTA':'START DAY '+(room.day+1)):'START DAY 1';
+  const label=waiting?'READY FOR YOUR FIRST SHIFT':active?'SHIFT IN PROGRESS':room.outcome==='quota-failed'?'QUOTA FAILED':room.outcome==='quota-passed'?'QUOTA CLEARED':'DAY COMPLETE';
+  const day=room.day||1;
+  launchpad.innerHTML='<div class="launchpadTop"><span class="launchpadPulse"></span><small>MANAGEMENT CONTROL</small></div>'+
+    '<h2>'+label+'</h2><p>QUOTA '+room.quotaLevel+' · DAY '+day+'/3 · '+connected+' DESK'+(connected===1?'':'S')+' CONNECTED</p>'+
+    '<div class="launchpadMoney"><span>Banked</span><b>'+money(room.credits)+'</b><span>Target</span><b>'+money(room.quota)+'</b></div>'+
+    (active?'<p class="launchpadInstruction">Shift is live. Open Phone to choose a customer, or open Computer to assist someone.</p>':
+      '<p class="launchpadInstruction">'+(host?'Start your day here, then launch Phone from the desktop.':'Waiting for the host to start the day.')+'</p>')+
+    '<div class="launchpadActions">'+
+    (active?'<button id="desktopOpenPhone" class="desktopPrimary">OPEN PHONE '+appIcon('phone')+'</button>':
+      '<button id="desktopStartShift" class="desktopPrimary" '+(!host||!online()?'disabled':'')+'>'+nextDay+' '+appIcon('phone')+'</button>')+
+    '<button id="desktopOpenOperations" class="desktopSecondary">OPERATIONS</button></div>'+
+    (active&&host?'<button id="desktopEndShift" class="desktopSubtle">END DAY EARLY</button>':'')+
+    '<div class="launchpadFooter">ROOM <b>'+safe(room.code)+'</b><button id="desktopCopyCode" title="Copy room code">COPY</button></div>';
 }
 function render() {
   if (!room || !own()) return;
-  if (!desktop.windows.size) { openApp('phone'); openApp('operations'); app = 'phone'; }
   stats();
+  renderLaunchpad();
   const drafts = new Map([...document.querySelectorAll('.osWindow input:not([type=checkbox]),.osWindow textarea')].map(e => [e.id,e.value]));
   const focused = document.activeElement?.id, selection = document.activeElement?.selectionStart;
   document.querySelectorAll('.appicon').forEach(b => b.classList.toggle('active',b.dataset.app === app));
-  renderPhone($('leftPanel'));
+  if ($('leftPanel')) renderPhone($('leftPanel'));
   if ($('computerPanel')) renderComputer($('computerPanel'));
   if ($('ledgerPanel')) $('ledgerPanel').innerHTML = `<div class="sectiontitle">TEAM SALES REGISTER</div><div class="infoBox"><small>Bank available for quota</small><b>${money(room.credits)}</b></div><div class="infoBox"><small>Earned today</small><b>${money(room.earned)}</b></div>${room.results.map(r => `<div class="logentry"><span>${safe(r.name)} / ${safe(r.player)}<br>${safe(r.product)}<br>${safe(r.reason)}</span><b>${r.win ? '+' + money(r.value)+(r.bonus?' + '+money(r.bonus)+' bonus':'') : 'NO SALE'}</b></div>`).join('')}<div class="sectiontitle">RECOVERY JOBS</div>${(room.lootResults || []).map(r => `<div class="logentry"><span>${safe(r.player)} recovered ${safe(r.kind.toUpperCase())} from ${safe(r.customer)}</span><b>+${money(r.value)}</b></div>`).join('')}`;
   if ($('filesPanel')) renderFiles($('filesPanel'));
@@ -142,7 +175,7 @@ function render() {
   if ($('wallpaperPanel')) renderWallpaper($('wallpaperPanel'));
   if ($('calculatorPanel')) $('calculatorPanel').innerHTML = '<div class="sectiontitle">DESKTOP CALCULATOR</div><p class="helptext">Use this to reconcile a customer invoice. Supports parentheses and + − * /.</p><form id="calculatorForm"><input id="calculatorInput" aria-label="Calculation" maxlength="80" placeholder="(40 * 3) + 7 - 2"><button class="actionbtn">CALCULATE</button></form><output id="calculatorResult" class="calcResult"></output>';
   if ($('notesPanel')) $('notesPanel').innerHTML = '<label class="sectiontitle" for="deskNotes">PRIVATE DESK NOTES</label><textarea id="deskNotes" maxlength="3000" placeholder="Keep customer details and objections here…"></textarea><p class="tiny soft">Stored in this tab only. Notes are not sent to the model.</p>';
-  renderOperations(); renderSummary(); wire();
+  if ($('rightPanel')) renderOperations(); renderSummary(); wire();
   for (const [id,value] of drafts) if ($(id)) $(id).value = value;
   if ($('deskNotes') && !drafts.has('deskNotes')) $('deskNotes').value = saved('cold-call-notes') || '';
   if ($(focused)) { $(focused).focus(); if (typeof selection === 'number') $(focused).setSelectionRange?.(selection,selection); }
@@ -247,6 +280,11 @@ function wire() {
   if($('vaultTarget'))$('vaultTarget').onchange=e=>{vaultTarget=e.target.value;render();};
   for(const kind of ['ssd','wallet'])if($(kind+'Form'))$(kind+'Form').onsubmit=e=>{e.preventDefault();action('loot:extract',{playerId:vaultTarget,kind,answer:$(kind+'Pin').value});};
   bind('startShift', () => action('shift:start')); bind('nextShift', () => action('shift:start')); bind('endShift', () => action('shift:end'));
+  bind('desktopStartShift',()=>action('shift:start'));
+  bind('desktopEndShift',()=>action('shift:end'));
+  bind('desktopOpenPhone',()=>{openApp('phone');render();});
+  bind('desktopOpenOperations',()=>{openApp('operations');render();});
+  bind('desktopCopyCode',async()=>{try{await navigator.clipboard.writeText(room.code);notify('Room code copied');}catch{notify('Room code: '+room.code);}});
   bind('leaveSummary', leave); bind('reviewShift', () => $('overlay').classList.add('hidden'));
   bind('openComputer', () => { openApp('computer'); computerTarget = playerId; render(); });
   bind('copyCode', async () => { try { await navigator.clipboard.writeText(room.code); notify('Room code copied'); } catch { notify('Room code: ' + room.code); } });
@@ -324,7 +362,7 @@ function startListening() {
 async function leave() { stopListening(); stopSpeech(); await action('room:leave'); leaveLocally(); }
 document.querySelectorAll('.appicon').forEach(b => b.onclick = () => { openApp(b.dataset.app); stopListening(); render(); });
 document.querySelectorAll('[data-shortcut]').forEach(b=>b.onclick=()=>{startMenu.hidden=true;openApp(b.dataset.shortcut);render();});
-const pcButton = document.createElement('button'); pcButton.className = 'appicon'; pcButton.dataset.app = 'computer'; pcButton.title = 'Customer computers'; pcButton.innerHTML = '▣<small>COMPUTER</small>';
+const pcButton = document.createElement('button'); pcButton.className = 'appicon'; pcButton.dataset.app = 'computer'; pcButton.title = 'Customer computers'; pcButton.innerHTML = '<span class="dockIcon">'+appIcon('computer')+'</span><small>COMPUTER</small>';
 pcButton.onclick = () => { openApp('computer'); stopListening(); render(); }; document.querySelector('.sidebar').insertBefore(pcButton, document.querySelector('[data-app="ledger"]'));
 $('lobbyForm').onsubmit = e => { e.preventDefault(); connect(false); };
 $('joinBtn').onclick = () => { if ($('lobbyForm').reportValidity()) connect(true); };
@@ -336,4 +374,5 @@ $('howBtn').onclick = () => {
 setInterval(() => { stats(); $('osClock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }, 500);
 window.addEventListener('pagehide', () => { stopListening(); stopSpeech(); });
 
-for (const [id,icon,label] of [['calculator','＋','CALC'],['notes','✎','NOTES'],['operations','▤','OPS'],['store','▦','STORE'],['vault','◈','VAULT'],['wallpaper','▧','WALLPAPER']]) { const button = document.createElement('button'); button.className = 'appicon'; button.dataset.app = id; button.innerHTML = icon + '<small>' + label + '</small>'; button.onclick = () => { openApp(id); render(); }; document.querySelector('.sidebar').append(button); }
+for (const id of ['calculator','notes','operations','store','vault','wallpaper']) { const button = document.createElement('button'); button.className = 'appicon'; button.dataset.app = id; button.title=APP_BY_ID[id].name;button.innerHTML = '<span class="dockIcon">'+appIcon(id)+'</span><small>' + APP_BY_ID[id].label + '</small>'; button.onclick = () => { openApp(id); render(); }; document.querySelector('.sidebar').append(button); }
+for(const button of document.querySelectorAll('.sidebar .appicon')){const id=button.dataset.app;if(!APP_BY_ID[id])continue;button.dataset.appKey=id;button.innerHTML='<span class="dockIcon">'+appIcon(id)+'</span><small>'+APP_BY_ID[id].label+'</small>';button.classList.remove('active');}
