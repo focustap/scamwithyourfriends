@@ -73,3 +73,13 @@ h1 em{font-style:normal;color:var(--blue);text-shadow:0 0 55px #61d8ff42}
 .storeCard{background:#132536;border:1px solid #395971;border-radius:11px;padding:15px;display:grid;gap:12px;margin:12px 0;font-size:13px;line-height:1.55}
 .storeCard .sectiontitle{margin-bottom:7px}.storeCard .actionbtn{justify-self:start}.storeCard p{margin:5px 0 8px}.storeCard input{min-width:0}
 @media(max-width:900px){.desktopShortcuts{position:relative;left:0;top:0;grid-template-columns:repeat(4,minmax(58px,1fr));width:100%;grid-auto-rows:78px}.desktopShortcut span{width:34px;height:34px;font-size:19px}.desktopShortcut small{font-size:8px}.startMenu{position:fixed;bottom:55px;left:12px}}
+
+/* Sales mission, clear marks, and closing odds */
+.salesObjective{background:#193449;border:1px solid #619aa1;border-radius:10px;padding:14px 17px;margin:14px 0}.salesObjective small,.closingPanel small{font-size:10px;letter-spacing:.12em;color:#9fd9c6;font-weight:900}
+.salesObjective h3{font-size:18px;line-height:1.3;margin:6px 0;color:#f0f8ff}.salesObjective p{font-size:12px;line-height:1.5;color:#c2d5e0;margin:5px 0}
+.pitchChecklist{margin:14px 0}.pitchChecklist .sectiontitle{margin-bottom:9px}.pitchMarks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pitchMark{background:#13283a;border:1px solid #40617a;padding:11px;border-radius:9px;min-width:0}.pitchMark.done{background:#17382e;border-color:#70caa8}
+.pitchMarkTitle{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;font-size:12px}.pitchMarkTitle span{font-size:9px;color:#9db2bf}.pitchMark.done .pitchMarkTitle span{color:#9cf5c0}
+.pitchMark p{font-size:11px;line-height:1.5;color:#b5c7d5;margin:7px 0 0}.closingPanel{border:1px solid #7b8359;border-radius:10px;background:#293021;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;margin:12px 0}
+.closingPanel strong{font-size:29px;color:#c7f4ae;display:block;margin:5px 0}.closingPanel p{font-size:11px;line-height:1.5;max-width:400px;color:#cad9c1;margin:0}.closingPanel button{flex-shrink:0;white-space:nowrap}
+@media(max-width:720px){.pitchMarks{grid-template-columns:1fr}.closingPanel{flex-direction:column;align-items:stretch}.closingPanel button{width:100%}}

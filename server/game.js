@@ -3,6 +3,7 @@ import { NPCS } from '../assets/npcs.js';
 import { evaluatePersuasion } from './persuasion.js';
 import { parseOffer, priceRange } from './pricing.js';
 import { UPGRADES, LOOT_REWARDS } from './upgrades.js';
+import { closingChance, mayTryClose } from './deals.js';
 
 const clamp = n => Math.max(0, Math.min(100, n));
 const code = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('');
@@ -11,7 +12,7 @@ const preoccupations = ['a goose has taken over the driveway', 'the printer is d
 const events = [
   { text: 'Casual Friday: customers are 4% more trusting of pantsless corporations.', trust: 4 },
   { text: 'The office goose ate a coupon. Management adds $100 to the quota.', quota: 100 },
-  { text: 'The printer accidentally printed money. Fictional petty cash: +$50.', cash: 50 },
+  { text: 'The printer accidentally printed money. Petty cash windfall: +$50.', cash: 50 },
   { text: 'Mandatory hold music has been replaced with a kazoo solo. Suspicion +4.', suspicion: 4 },
 ];
 
@@ -41,7 +42,7 @@ export class Game {
     if (create) {
       if (this.rooms.size >= this.config.maxRooms) throw new Error('Office full. Try later.');
       let roomCode; do { roomCode = code(); } while (this.rooms.has(roomCode));
-      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, earned: 0, quota: 400, credits: 0, upgrades: [], lootResults: [],
+      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, earned: 0, quota: 230, credits: 0, upgrades: [], lootResults: [],
         calls: 0, wins: 0, used: [], results: [], memories:{}, event: 'Welcome. Your benefits package is a stapler.', updatedAt: Date.now() };
       this.rooms.set(room.code, room);
     } else {
@@ -63,11 +64,11 @@ export class Game {
     const { room, player } = this.current(socket);
     if (room.host !== player.id) throw new Error('Only the host can start a shift');
     if (room.phase === 'playing') throw new Error('Shift already started');
-    if ([...room.players.values()].filter(p => p.socketId).length < 2) throw new Error('Two connected players are required');
+    if (![...room.players.values()].some(p => p.socketId)) throw new Error('At least one player must be connected');
     room.shift++; room.phase = 'playing'; room.earned = 0;
-    room.quota = Math.min(900, 400 + (room.players.size - 2) * 100 + (room.shift - 1) * 70);
+    room.quota = Math.min(900, (room.players.size === 1 ? 230 : 400 + (room.players.size - 2) * 100) + (room.shift - 1) * 70);
     room.endsAt = Date.now() + this.config.shiftSeconds * 1000; room.nextEvent = Date.now() + 35000;
-    room.calls = 0; room.wins = 0; room.used = []; room.results = []; room.event = 'The shift is live. Make the imaginary economy worse.';
+    room.calls = 0; room.wins = 0; room.used = []; room.results = []; room.event = 'The shift is live. Management expects results.';
     for (const p of room.players.values()) { p.call = null; p.earned = 0; }
     this.broadcast(room);
   }
@@ -81,9 +82,9 @@ export class Game {
     if (!npc || player.call || room.used.includes(npc.id) || [...room.players.values()].some(p => p.call?.npcId === npc.id)) throw new Error('That line is unavailable');
     player.call = { id: randomBytes(8).toString('hex'), npcId: npc.id, trust: npc.trust, susp: npc.susp, turns: 0,
       busy:false, history:[{ who:'system', text:'Line connected. Introduce yourself using your own words.' }],
-      preoccupation:pick(preoccupations), mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
+      preoccupation:'Focus on the product and the customer’s needs', mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
       memory:[...(room.memories[npc.id] || [])], resolved:[], contributions:{}, pitches:[], ready:false, objection:npc.concerns[0].detail,
-      offerPrice:npc.value, declineStreak:0, loot:this.makeLoot(),
+      offerPrice:npc.value, declineStreak:0, dealAttempts:0, lastDealTurn:-1, loot:this.makeLoot(),
       computer: this.computer(), requestTimes: [] };
     room.calls++; this.broadcast(room);
   }
@@ -146,7 +147,7 @@ export class Game {
       call.ready = assessment.ready && call.offerPrice >= bounds.min && call.offerPrice <= bounds.max; call.objection = result.objection;
       call.memory = [...new Set([...call.memory,...result.memory])].slice(-6); room.memories[npc.id] = call.memory;
       call.history.push({ who: 'bot', text: result.reply });
-      call.history.push({ who:'system',text:assessment.repeated ? 'Repeated pitch: no rapport gained.' : `Rapport ${assessment.trust >= 0 ? '+' : ''}${assessment.trust}. Concerns addressed: ${call.resolved.length}/3.` });
+      call.history.push({ who:'system',text:assessment.repeated ? 'Repeated pitch: no rapport gained.' : `Rapport ${assessment.trust >= 0 ? '+' : ''}${assessment.trust}. Pitch points: ${call.resolved.length}/3.` });
       this.io.to(player.socketId).emit('npc:speak', { callId: call.id, npcId: npc.id, text: result.reply });
       if (assessment.hangup || (call.declineStreak >= 3 && result.wantsToEnd) || call.susp >= 90 || call.turns >= 12) this.close(room, player, false, 'Customer ended the call.');
     } catch (error) {
@@ -164,7 +165,7 @@ export class Game {
     const pc = call.computer;
     if (pc.completed) throw new Error('Computer already verified');
     if (Date.now() < pc.lockedUntil) throw new Error('Computer is rebooting. Wait three seconds.');
-    if (pc.stage === 'diagnostics') throw new Error('Run scan and repair in the simulated terminal first');
+    if (pc.stage === 'diagnostics') throw new Error('Run scan and repair in Terminal first');
     if (pc.stage === 'wires') {
       if (data.answer === pc.sequence[pc.progress]) pc.progress++;
       else { pc.progress = 0; pc.attempts++; pc.lockedUntil = Date.now() + 3000; call.susp = clamp(call.susp + 3); }
@@ -183,23 +184,23 @@ export class Game {
     if (!upgrade) throw new Error('Unknown software upgrade');
     if (room.upgrades.includes(upgrade.id)) throw new Error('App already installed');
     if (upgrade.id === 'wallet' && !room.upgrades.includes('ssd')) throw new Error('Install SSD Extractor first');
-    if (room.credits < upgrade.cost) throw new Error('Not enough fictional office credits');
+    if (room.credits < upgrade.cost) throw new Error('Not enough office credits');
     room.credits -= upgrade.cost; room.upgrades.push(upgrade.id); this.broadcast(room);
   }
   extract(socket,data) {
     const { room, player } = this.current(socket); this.playing(room);
-    if (!['ssd','wallet'].includes(data.kind) || !/^\d{4}$/.test(String(data.answer ?? ''))) throw new Error('Enter a four-digit simulation PIN');
+    if (!['ssd','wallet'].includes(data.kind) || !/^\d{4}$/.test(String(data.answer ?? ''))) throw new Error('Enter a four-digit PIN');
     const target = room.players.get(data.playerId || player.id), call = target?.call;
     if (!call) throw new Error('Open a customer line first');
     if (call.busy || !call.computer.completed) throw new Error('Verify the customer computer first');
     if (!room.upgrades.includes(data.kind)) throw new Error('Buy the required software in App Store');
     const loot = call.loot;
     if (Date.now() < loot.lockedUntil) throw new Error('Simulation locked. Try again shortly');
-    if (data.kind === 'wallet' && !loot.ssdTaken) throw new Error('Extract the simulated SSD first');
+    if (data.kind === 'wallet' && !loot.ssdTaken) throw new Error('Recover the SSD first');
     if (data.kind === 'ssd' ? loot.ssdTaken : loot.walletTaken) throw new Error('Already extracted from this customer');
     if (String(data.answer) !== (data.kind === 'ssd' ? loot.ssdPin : loot.walletPin)) {
       loot.attempts++; loot.lockedUntil = Date.now() + 3000;
-      throw new Error('Wrong simulation PIN. Wait three seconds to retry');
+      throw new Error('Wrong PIN. Wait three seconds to retry');
     }
     if (data.kind === 'ssd') loot.ssdTaken = true; else loot.walletTaken = true;
     const amount = LOOT_REWARDS[data.kind]; room.earned += amount; room.credits += amount; player.earned += amount;
@@ -210,10 +211,23 @@ export class Game {
     const { room, player } = this.current(socket); this.playing(room);
     const call = player.call;
     if (!call || call.busy) throw new Error('Wait for the customer');
-    if (call.trust < 65 || call.susp >= 60 || call.turns < 3 || !call.computer.completed || call.resolved.length < 2 || !call.ready) throw new Error('Need trust ≥65, suspicion <60, three turns, two answered concerns, customer agreement and verified computer');
-    const bounds = priceRange(NPCS.find(n => n.id === call.npcId).value);
-    if (call.offerPrice < bounds.min || call.offerPrice > bounds.max) throw new Error('Negotiated price outside the allowed fictional sale range');
-    this.close(room, player, true, 'Sale approved'); this.broadcast(room);
+    if (!mayTryClose(call)) throw new Error('Talk again before another close attempt (maximum three per call)');
+    const npc = NPCS.find(n => n.id === call.npcId);
+    const chance = closingChance(npc,call);
+    if (!chance) throw new Error('Quote between 50% and 200% of the listed price before closing');
+    call.lastDealTurn = call.turns; call.dealAttempts++;
+    const roll = this.dealRoll ? this.dealRoll() : randomInt(1,101);
+    if (!Number.isInteger(roll) || roll < 1 || roll > 100) throw new Error('Invalid deal roll');
+    if (roll <= chance) {
+      this.close(room,player,true,'Closed at '+chance+'% odds');
+      this.broadcast(room);
+      return { closed:true,chance };
+    }
+    call.trust = clamp(call.trust - 4); call.susp = clamp(call.susp + 8);
+    call.history.push({ who:'system',text:`Close failed (${chance}% odds). Trust -4, suspicion +8. ${call.dealAttempts < 3 ? 'Talk again before retrying.' : 'No closing attempts left.'}` });
+    if (call.dealAttempts >= 3) this.close(room,player,false,'Three failed close attempts');
+    this.broadcast(room);
+    return { closed:false,chance };
   }
   close(room, player, win, reason) {
     const call = player.call; if (!call) return;
@@ -284,7 +298,8 @@ export class Game {
       event: room.event, aiEnabled: this.config.aiEnabled, usage: this.dialogue.ledger.snapshot(),
       players: [...room.players.values()].map(p => ({ id: p.id, name: p.name, connected: !!p.socketId, earned: p.earned,
         call: p.call ? { ...Object.fromEntries(Object.entries(p.call).filter(([k]) => !['controller', 'requestTimes', 'lastTurn', 'loot'].includes(k))),
-          loot:Object.fromEntries(Object.entries(p.call.loot).filter(([k]) => !['ssdPin','walletPin'].includes(k))) } : null })) };
+          loot:Object.fromEntries(Object.entries(p.call.loot).filter(([k]) => !['ssdPin','walletPin'].includes(k))),
+          closeChance:closingChance(NPCS.find(n=>n.id===p.call.npcId),p.call),canClose:mayTryClose(p.call) } : null })) };
   }
   broadcast(room) { room.updatedAt = Date.now(); this.io.to(room.code).emit('room:state', this.snapshot(room)); }
 }

@@ -32,7 +32,7 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await a.locator('#playerName').fill('Host'); await a.locator('#enterBtn').click();
   await expect(a.locator('#app')).toBeVisible();
   const code = await a.locator('.roomCode').textContent();
-  await expect(a.locator('#startShift')).toBeDisabled();
+  await expect(a.locator('#startShift')).toBeEnabled();
   await b.goto('http://127.0.0.1:4173/scamwithyourfriends/');
   await b.locator('#playerName').fill('Teammate'); await b.locator('#roomCode').fill(code); await b.locator('#joinBtn').click();
   await expect(b.locator('#app')).toBeVisible(); await expect(a.locator('#startShift')).toBeEnabled();
@@ -69,7 +69,9 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await a.waitForTimeout(1300);
   await a.locator('#pitchInput').fill('The antenna detects squirrels near the seven lawn flamingos.');
   await a.locator('#pitchForm button.actionbtn').click();
-  await expect(a.locator('#dealBtn')).toBeDisabled();
+  await expect(a.locator('#dealBtn')).toBeEnabled();
+  await expect(a.locator('.salesObjective')).toContainText('SELL: Deluxe invisible lawn security');
+  await expect(a.locator('.pitchMark')).toHaveCount(3);
   await a.waitForTimeout(1300);
   await a.locator('#pitchInput').fill('We can test this fictional device, and I cannot guarantee real results.');
   await a.locator('#pitchForm button.actionbtn').click();
@@ -78,9 +80,11 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await expect(a.locator('#micBtn')).toContainText('STOP');
   await a.screenshot({ path: 'test-results/desktop-call.png', fullPage: true });
   await a.locator('#dealBtn').click();
-  await expect(a.locator('#earnings')).toHaveText('$140'); await expect(b.locator('#earnings')).toHaveText('$140');
+  await expect.poll(async()=> (await a.locator('#earnings').textContent())==='$140' || (await a.locator('#transcript').textContent().catch(()=>'' )).includes('Close failed')).toBe(true);
+  const earnings=await a.locator('#earnings').textContent();
+  await expect(b.locator('#earnings')).toHaveText(earnings);
   await b.reload(); await b.locator('#enterBtn').click();
-  await expect(b.locator('#app')).toBeVisible(); await expect(b.locator('#earnings')).toHaveText('$140');
+  await expect(b.locator('#app')).toBeVisible(); await expect(b.locator('#earnings')).toHaveText(earnings);
   await a.locator('#endShift').click();
   await expect(a.locator('#overlay')).toContainText('SHIFT COMPLETE'); await expect(b.locator('#overlay')).toContainText('SHIFT COMPLETE');
   await a.locator('#nextShift').click(); await expect(a.locator('#earnings')).toHaveText('$0');
@@ -116,4 +120,20 @@ test('desktop windows drag, minimize and restore; calculator and notes work',asy
   await page.locator('[data-task=notes]').click(); await expect(page.locator('#deskNotes')).toHaveValue('Doug wants clear cancellation terms.');
   await page.locator('[data-app=files]').click(); await page.locator('[data-file=concerns]').click();
   await expect(page.locator('#filesPanel')).toContainText('cost');
+});
+
+test('solo room can start immediately and closing odds are visible without repairing computer',async({page})=>{
+  await page.goto('http://127.0.0.1:4173/scamwithyourfriends/');
+  await page.locator('#enterBtn').click();
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#startShift')).toBeEnabled();
+  await page.locator('#startShift').click();
+  await expect(page.locator('#remaining')).toHaveText('$230');
+  await page.locator('[data-call="mildred"]').click();
+  await expect(page.locator('.salesObjective')).toContainText('SELL: Cloud-powered toaster insurance');
+  await expect(page.locator('.pitchMark')).toHaveCount(3);
+  await expect(page.locator('#dealBtn')).toBeEnabled();
+  await expect(page.locator('#openComputer')).toContainText('OPTIONAL');
+  await expect(page.locator('#dealBtn')).toContainText('%');
+  await expect(page.locator('#leftPanel')).not.toContainText('fictional');
 });
