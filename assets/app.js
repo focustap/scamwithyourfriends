@@ -122,7 +122,7 @@ function render() {
   document.querySelectorAll('.appicon').forEach(b => b.classList.toggle('active',b.dataset.app === app));
   renderPhone($('leftPanel'));
   if ($('computerPanel')) renderComputer($('computerPanel'));
-  if ($('ledgerPanel')) $('ledgerPanel').innerHTML = `<div class="sectiontitle">TEAM SALES REGISTER</div><div class="infoBox"><small>Shared earnings</small><b>${money(room.earned)}</b></div>${room.results.map(r => `<div class="logentry"><span>${safe(r.name)} / ${safe(r.player)}<br>${safe(r.product)}<br>${safe(r.reason)}</span><b>${r.win ? '+' + money(r.value) : 'NO SALE'}</b></div>`).join('')}<div class="sectiontitle">RECOVERED SIMULATIONS</div>${(room.lootResults || []).map(r => `<div class="logentry"><span>${safe(r.player)} recovered ${safe(r.kind.toUpperCase())} from ${safe(r.customer)}</span><b>+${money(r.value)}</b></div>`).join('')}`;
+  if ($('ledgerPanel')) $('ledgerPanel').innerHTML = `<div class="sectiontitle">TEAM SALES REGISTER</div><div class="infoBox"><small>Shared earnings</small><b>${money(room.earned)}</b></div>${room.results.map(r => `<div class="logentry"><span>${safe(r.name)} / ${safe(r.player)}<br>${safe(r.product)}<br>${safe(r.reason)}</span><b>${r.win ? '+' + money(r.value) : 'NO SALE'}</b></div>`).join('')}<div class="sectiontitle">RECOVERY JOBS</div>${(room.lootResults || []).map(r => `<div class="logentry"><span>${safe(r.player)} recovered ${safe(r.kind.toUpperCase())} from ${safe(r.customer)}</span><b>+${money(r.value)}</b></div>`).join('')}`;
   if ($('filesPanel')) renderFiles($('filesPanel'));
   if ($('storePanel')) renderStore($('storePanel'));
   if ($('vaultPanel')) renderVault($('vaultPanel'));
@@ -164,7 +164,7 @@ function renderComputer(p) {
 
 function renderStore(p) {
   const apps=[
-    {id:'ssd',label:'SSD EXTRACTOR',price:80,desc:'Recover  files from a verified customer computer (+$30 per target).'},
+    {id:'ssd',label:'SSD EXTRACTOR',price:80,desc:'Recover customer files from a verified computer (+$30 per target).'},
     {id:'wallet',label:'WALLET CIPHER',price:160,desc:'Decode a  wallet puzzle after SSD extraction (+$75 per target).'},
   ];
   p.innerHTML='<div class="sectiontitle">SOFTWARE DEPOT // TEAM UPGRADES</div><div class="infoBox"><small>Spendable office credits (carry across shifts)</small><b>'+money(room.credits||0)+'</b></div><p class="helptext">Buying apps does not reduce shift quota progress. Unlocks are shared by your team until this room closes.</p>'+
@@ -179,7 +179,7 @@ function renderVault(p) {
   if(!targets.some(person=>person.id===vaultTarget))vaultTarget=own()?.call?playerId:targets[0]?.id;
   const player=targets.find(person=>person.id===vaultTarget),c=player?.call,loot=c?.loot;
   const header='<div class="sectiontitle">VAULT LAB // RECOVERY DESK</div><p class="helptext">Use upgraded tools on verified  customer computers. No real files, wallets or devices are accessed.</p>';
-  const select=targets.length?'<label class="helptext">TARGET DESK <select id="vaultTarget" class="outline">'+targets.map(t=>'<option value="'+safe(t.id)+'" '+(t.id===vaultTarget?'selected':'')+'>'+safe(t.name)+' / '+safe(npcFor(t.call).name)+'</option>').join('')+'</select></label>':'<div class="notice">Call a customer first to unlock a virtual computer.</div>';
+  const select=targets.length?'<label class="helptext">TARGET DESK <select id="vaultTarget" class="outline">'+targets.map(t=>'<option value="'+safe(t.id)+'" '+(t.id===vaultTarget?'selected':'')+'>'+safe(t.name)+' / '+safe(npcFor(t.call).name)+'</option>').join('')+'</select></label>':'<div class="notice">Call a customer first to access their computer.</div>';
   p.innerHTML=header+select+(!c?'':!c.computer.completed?'<div class="notice">Verify this customer’s computer before running recovery software.</div>':[
     {kind:'ssd',installed:room.upgrades?.includes('ssd'),done:loot.ssdTaken,label:'SSD EXTRACTOR',hint:'Badge '+safe(loot.badge)+' → Enter these four digits BACKWARDS.',input:'ssdPin'},
     {kind:'wallet',installed:room.upgrades?.includes('wallet'),done:loot.walletTaken,label:'WALLET CIPHER',hint:'Wallet code fragments '+safe(loot.fragments.split('').join('–'))+' → Enter them in C-A-D-B order.',input:'walletPin'},
@@ -302,7 +302,7 @@ $('lobbyForm').onsubmit = e => { e.preventDefault(); connect(false); };
 $('joinBtn').onclick = () => { if ($('lobbyForm').reportValidity()) connect(true); };
 $('exitBtn').onclick = leave;
 $('howBtn').onclick = () => {
-  $('overlay').innerHTML = '<div class="modal"><div class="kicker">EMPLOYEE ORIENTATION</div><h2>MAKE THE CALL.</h2><p>Connect to your host’s backend, create a private room, and share its code. 1–4 players share a quota.</p><p>Hit PRICE, BENEFIT and TRUST, then try closing whenever you're ready. Computer repairs give a bonus but aren't required. TALK uses browser recognition; NPCs speak with browser voices. AI is enabled and budgeted by your host.</p><button id="closeHow" class="bigbtn">GOT IT →</button></div>';
+  $('overlay').innerHTML = '<div class="modal"><div class="kicker">EMPLOYEE ORIENTATION</div><h2>MAKE THE CALL.</h2><p>Connect to your host’s backend, create a private room, and share its code. 1–4 players share a quota.</p><p>Hit PRICE, BENEFIT and TRUST, then try closing at any time. Computer repairs give a bonus but aren't required. TALK uses browser recognition; NPCs speak with browser voices. AI is enabled and budgeted by your host.</p><button id="closeHow" class="bigbtn">GOT IT →</button></div>';
   $('overlay').classList.remove('hidden'); $('closeHow').onclick = () => $('overlay').classList.add('hidden');
 };
 setInterval(() => { stats(); $('osClock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }, 500);
