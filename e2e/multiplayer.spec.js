@@ -140,3 +140,17 @@ test('solo room can start immediately and closing odds are visible without repai
   await expect(page.locator('#dealBtn')).toContainText('%');
   await expect(page.locator('#leftPanel')).not.toContainText('fictional');
 });
+
+test('wallpaper app loads custom GitHub images and saves background across page reloads',async({page})=>{
+  await page.goto('http://127.0.0.1:4173/scamwithyourfriends/');
+  await page.locator('#enterBtn').click();
+  await expect(page.locator('#app')).toBeVisible();
+  await page.locator('.startButton').click();
+  await page.locator('.startMenu [data-shortcut="wallpaper"]').click();
+  await expect(page.locator('#wallpaperPanel [data-wallpaper]')).toHaveCount(5);
+  await page.locator('#wallpaperPanel [data-wallpaper="bgpic2.jpg"]').click();
+  await expect(page.locator('.desktop')).toHaveCSS('background-image',/bgpic2.jpg/);
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('cold-call-wallpaper'))).toBe('bgpic2.jpg');
+  await page.reload();
+  await expect(page.locator('.desktop')).toHaveCSS('background-image',/bgpic2.jpg/);
+});

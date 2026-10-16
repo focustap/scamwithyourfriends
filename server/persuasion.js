@@ -31,8 +31,8 @@ export function evaluatePersuasion(npc, call, words, result) {
   let trust = 0, suspicion = repeated ? 3 : 0;
   const validConcern = npc.concerns.some(c => c.id === result.concernId);
   const evidence = normalize(result.evidence);
-  const grounded = evidence.length >= 12 && normalize(words).includes(evidence) && evidence.split(' ').length >= 4;
-  if (!repeated && grounded && validConcern && result.quality >= 2 && ['explanation','objection'].includes(result.intent)) {
+  const grounded = evidence.length >= 9 && normalize(words).includes(evidence) && evidence.split(' ').length >= 3;
+  if (!repeated && grounded && validConcern && result.quality >= 1 && ['explanation','objection'].includes(result.intent)) {
     const count = call.contributions[result.concernId] || 0;
     trust = count === 0 ? 12 : count === 1 ? 4 : 0; suspicion -= trust > 0 ? 6 : 0;
     call.contributions[result.concernId] = count + 1;
@@ -48,6 +48,7 @@ export function evaluatePersuasion(npc, call, words, result) {
   if ((result.intent === 'abuse' && abusive) || (result.intent === 'pressure' && pressure)) { trust = -6; suspicion += 16; call.offenses++; }
   call.pitches.push(words); call.pitches = call.pitches.slice(-12);
   const goodbye = result.intent === 'goodbye' && /\b(bye|goodbye|hang up|end (this|the) call|talk later)\b/i.test(words);
-  const hangup = goodbye || (call.offenses >= 2 && result.wantsToEnd);
+  const severe = /\b(?:kill|hurt|threaten|explode|blow\s+(?:up|your|this)|burn\s+down|idiot|moron|shut\s+up)\b/i.test(words);
+  const hangup = goodbye || (result.wantsToEnd && severe) || (call.offenses >= 2 && result.wantsToEnd);
   return { trust, suspicion, hangup, repeated, grounded, ready:result.disposition === 'ready' && call.resolved.length >= 2 };
 }

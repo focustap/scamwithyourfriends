@@ -1,5 +1,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { NPCS } from '../assets/npcs.js';
+import { PRODUCTS } from '../assets/products.js';
+import { assignProducts, assignedNpc } from './products.js';
 import { evaluatePersuasion } from './persuasion.js';
 import { parseOffer, priceRange } from './pricing.js';
 import { UPGRADES, LOOT_REWARDS } from './upgrades.js';
@@ -49,7 +51,7 @@ export class Game {
     if (create) {
       if (this.rooms.size >= this.config.maxRooms) throw new Error('Office full. Try later.');
       let roomCode; do { roomCode = code(); } while (this.rooms.has(roomCode));
-      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, day:0, quotaLevel:1, outcome:'', earned:0, quota:600, credits:0, upgrades:[], lootResults:[], available:[], cycleSeen:[],
+      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, day:0, quotaLevel:1, outcome:'', earned:0, quota:600, credits:0, upgrades:[], lootResults:[], available:[], cycleSeen:[], offers:{}, lastProducts:{},
         calls: 0, wins: 0, used: [], results: [], memories:{}, event: 'Welcome. Your benefits package is a stapler.', updatedAt: Date.now() };
       this.rooms.set(room.code, room);
     } else {
@@ -80,6 +82,10 @@ export class Game {
     const remaining = NPCS.filter(n=>!room.cycleSeen.includes(n.id));
     room.available=(this.rosterPicker ? this.rosterPicker(remaining.length>=5 ? remaining : NPCS,5) : dailyRoster(remaining.length>=5 ? remaining : NPCS)).map(n=>n.id);
     room.cycleSeen.push(...room.available);
+    const assigned = this.productPicker ? this.productPicker(room.available,room.lastProducts) : assignProducts(room.available,room.lastProducts);
+    if (new Set(Object.values(assigned)).size !== room.available.length || room.available.some(id=>!PRODUCTS.some(p=>p.id===assigned[id]))) throw new Error('Invalid product assignments');
+    room.offers=Object.fromEntries(room.available.map(id=>[id,PRODUCTS.find(p=>p.id===assigned[id])]));
+    Object.assign(room.lastProducts,assigned);
     room.endsAt = Date.now() + this.config.shiftSeconds * 1000; room.nextEvent = Date.now() + 35000;
     room.calls = 0; room.wins = 0; room.used = []; room.results = []; room.event = 'The shift is live. Management expects results.';
     for (const p of room.players.values()) { p.call = null; p.earned = 0; }
@@ -89,15 +95,21 @@ export class Game {
     if (room.phase !== 'playing') throw new Error('Start a shift first');
     if (Date.now() >= room.endsAt) { this.finish(room); throw new Error('Shift complete'); }
   }
+  profile(call) {
+    const person=NPCS.find(n=>n.id===call.npcId);
+    return assignedNpc(person,call.product);
+  }
   dial(socket, data) {
     const { room, player } = this.current(socket); this.playing(room);
     const npc = NPCS.find(n => n.id === data.npcId);
     if (!npc || !room.available.includes(npc.id) || player.call || room.used.includes(npc.id) || [...room.players.values()].some(p => p.call?.npcId === npc.id)) throw new Error('That line is unavailable');
-    player.call = { id: randomBytes(8).toString('hex'), npcId: npc.id, trust: npc.trust, susp: npc.susp, turns: 0,
+    const product=room.offers[npc.id];
+    if (!product) throw new Error('Product not assigned');
+    player.call = { id: randomBytes(8).toString('hex'), npcId: npc.id, product, trust: npc.trust, susp: npc.susp, turns: 0,
       busy:false, history:[{ who:'system', text:'Line connected. Introduce yourself using your own words.' }],
       preoccupation:'Focus on the product and the customer’s needs', mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
-      memory:[...(room.memories[npc.id] || [])], resolved:[], contributions:{}, pitches:[], ready:false, objection:npc.concerns[0].detail,
-      offerPrice:npc.value, declineStreak:0, dealAttempts:0, lastDealTurn:-1, loot:this.makeLoot(),
+      memory:[...(room.memories[npc.id+':'+product.id] || [])], resolved:[], contributions:{}, pitches:[], ready:false, objection:product.concerns[0].detail,
+      offerPrice:product.value, declineStreak:0, dealAttempts:0, lastDealTurn:-1, loot:this.makeLoot(),
       computer: this.computer(), requestTimes: [] };
     room.calls++; this.broadcast(room);
   }
@@ -125,7 +137,7 @@ export class Game {
     else if (cmd === `REPAIR ${pc.fault}` && pc.diagnosed) { if (pc.stage === 'diagnostics') pc.stage = 'wires'; reply = 'Module repaired. Open Router to restore boot order.'; }
     else if (cmd === 'STATUS') reply = `System stage: ${pc.stage}. Verified: ${pc.completed}.`;
     else if (cmd === 'LS') reply = 'concerns.txt / invoice.csv / employee_benefits.txt';
-    else if (cmd === 'CAT CONCERNS.TXT') reply = NPCS.find(n => n.id === call.npcId).concerns.map(c => `${c.id}: ${c.detail}`).join('\n');
+    else if (cmd === 'CAT CONCERNS.TXT') reply = this.profile(call).concerns.map(c => `${c.id}: ${c.detail}`).join('\n');
     else reply = 'Unknown sandbox command. Type help. No real commands are executed.';
     pc.terminal.push('> ' + data.command,reply); pc.terminal = pc.terminal.slice(-14); this.broadcast(room);
   }
@@ -143,7 +155,7 @@ export class Game {
     call.busy = true; call.turns++; call.history.push({ who: 'me', text: data.text.trim() });
     const controller = new AbortController(); call.controller = controller;
     this.broadcast(room);
-    const npc = NPCS.find(n => n.id === call.npcId);
+    const npc = this.profile(call);
     const quoted = parseOffer(data.text.trim());
     const proposedPrice = quoted ?? call.offerPrice;
     try {
@@ -158,7 +170,7 @@ export class Game {
       call.trust = clamp(call.trust + assessment.trust); call.susp = clamp(call.susp + assessment.suspicion); call.mode = result.mode;
       const bounds = priceRange(npc.value);
       call.ready = assessment.ready && call.offerPrice >= bounds.min && call.offerPrice <= bounds.max; call.objection = result.objection;
-      call.memory = [...new Set([...call.memory,...result.memory])].slice(-6); room.memories[npc.id] = call.memory;
+      call.memory = [...new Set([...call.memory,...result.memory])].slice(-6); room.memories[npc.id+':'+call.product.id] = call.memory;
       call.history.push({ who: 'bot', text: result.reply });
       call.history.push({ who:'system',text:assessment.repeated ? 'Repeated pitch: no rapport gained.' : `Rapport ${assessment.trust >= 0 ? '+' : ''}${assessment.trust}. Pitch points: ${call.resolved.length}/3.` });
       this.io.to(player.socketId).emit('npc:speak', { callId: call.id, npcId: npc.id, text: result.reply });
@@ -225,7 +237,7 @@ export class Game {
     const call = player.call;
     if (!call || call.busy) throw new Error('Wait for the customer');
     if (!mayTryClose(call)) throw new Error('Talk again before another close attempt (maximum three per call)');
-    const npc = NPCS.find(n => n.id === call.npcId);
+    const npc = this.profile(call);
     const chance = closingChance(npc,call);
     if (!chance) throw new Error('Quote between 50% and 200% of the listed price before closing');
     call.lastDealTurn = call.turns; call.dealAttempts++;
@@ -245,7 +257,7 @@ export class Game {
   close(room, player, win, reason) {
     const call = player.call; if (!call) return;
     call.controller?.abort();
-    const npc = NPCS.find(n => n.id === call.npcId);
+    const npc = this.profile(call);
     if (win) {
       const bonus = room.upgrades.includes('commission') ? Math.floor(call.offerPrice * .20) : 0;
       room.earned += call.offerPrice + bonus; room.credits += call.offerPrice + bonus; room.wins++; player.earned += call.offerPrice + bonus;
@@ -320,11 +332,11 @@ export class Game {
   snapshot(room) {
     return { code: room.code, host: room.host, phase: room.phase, shift: room.shift, earned: room.earned, quota: room.quota, credits:room.credits, upgrades:room.upgrades, lootResults:room.lootResults,
       calls: room.calls, wins: room.wins, endsAt: room.endsAt || null, serverTime: Date.now(), used: room.used, results: room.results,
-      event: room.event, day:room.day,quotaLevel:room.quotaLevel,outcome:room.outcome,available:room.available, aiEnabled: this.config.aiEnabled, usage: this.dialogue.ledger.snapshot(),
+      event: room.event, day:room.day,quotaLevel:room.quotaLevel,outcome:room.outcome,available:room.available, offers:room.offers, aiEnabled: this.config.aiEnabled, usage: this.dialogue.ledger.snapshot(),
       players: [...room.players.values()].map(p => ({ id: p.id, name: p.name, connected: !!p.socketId, earned: p.earned,
         call: p.call ? { ...Object.fromEntries(Object.entries(p.call).filter(([k]) => !['controller', 'requestTimes', 'lastTurn', 'loot'].includes(k))),
           loot:Object.fromEntries(Object.entries(p.call.loot).filter(([k]) => !['ssdPin','walletPin'].includes(k))),
-          closeChance:closingChance(NPCS.find(n=>n.id===p.call.npcId),p.call),canClose:mayTryClose(p.call) } : null })) };
+          closeChance:closingChance(this.profile(p.call),p.call),canClose:mayTryClose(p.call) } : null })) };
   }
   broadcast(room) { room.updatedAt = Date.now(); this.io.to(room.code).emit('room:state', this.snapshot(room)); }
 }
