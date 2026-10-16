@@ -8,10 +8,17 @@ import { closingChance, mayTryClose } from './deals.js';
 const clamp = n => Math.max(0, Math.min(100, n));
 const code = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('');
 const pick = a => a[randomInt(a.length)];
+const dailyRoster = (pool, count = 5) => {
+  const copy=[...pool],result=[];
+  while(copy.length && result.length<count) result.push(copy.splice(randomInt(copy.length),1)[0]);
+  return result;
+};
+const startingQuota = players => players === 1 ? 600 : 1000 + Math.max(0,players - 2) * 300;
+const stageQuota = (players,level) => Math.round(startingQuota(players) * Math.pow(1.45,level - 1) / 10) * 10;
 const preoccupations = ['a goose has taken over the driveway', 'the printer is demanding paid leave', 'a neighbor is hosting competitive soup', 'the fridge has joined a union'];
 const events = [
   { text: 'Casual Friday: customers are 4% more trusting of pantsless corporations.', trust: 4 },
-  { text: 'The office goose ate a coupon. Management adds $100 to the quota.', quota: 100 },
+  { text: 'The office goose ate a coupon. Everyone's trust takes a hit.', quota: 100 },
   { text: 'The printer accidentally printed money. Petty cash windfall: +$50.', cash: 50 },
   { text: 'Mandatory hold music has been replaced with a kazoo solo. Suspicion +4.', suspicion: 4 },
 ];
@@ -42,7 +49,7 @@ export class Game {
     if (create) {
       if (this.rooms.size >= this.config.maxRooms) throw new Error('Office full. Try later.');
       let roomCode; do { roomCode = code(); } while (this.rooms.has(roomCode));
-      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, earned: 0, quota: 230, credits: 0, upgrades: [], lootResults: [],
+      room = { code: roomCode, host: null, players: new Map(), phase: 'lobby', shift: 0, day:0, quotaLevel:1, outcome:'', earned:0, quota:600, credits:0, upgrades:[], lootResults:[], available:[], cycleSeen:[],
         calls: 0, wins: 0, used: [], results: [], memories:{}, event: 'Welcome. Your benefits package is a stapler.', updatedAt: Date.now() };
       this.rooms.set(room.code, room);
     } else {
@@ -65,8 +72,14 @@ export class Game {
     if (room.host !== player.id) throw new Error('Only the host can start a shift');
     if (room.phase === 'playing') throw new Error('Shift already started');
     if (![...room.players.values()].some(p => p.socketId)) throw new Error('At least one player must be connected');
-    room.shift++; room.phase = 'playing'; room.earned = 0;
-    room.quota = Math.min(900, (room.players.size === 1 ? 230 : 400 + (room.players.size - 2) * 100) + (room.shift - 1) * 70);
+    if (room.day === 0 || room.day === 3) {
+      room.day=1; room.cycleSeen=[];
+      room.quota=stageQuota(room.players.size,room.quotaLevel);
+    } else room.day++;
+    room.shift++; room.phase='playing'; room.earned=0; room.outcome='';
+    const remaining = NPCS.filter(n=>!room.cycleSeen.includes(n.id));
+    room.available=dailyRoster(remaining.length>=5 ? remaining : NPCS).map(n=>n.id);
+    room.cycleSeen.push(...room.available);
     room.endsAt = Date.now() + this.config.shiftSeconds * 1000; room.nextEvent = Date.now() + 35000;
     room.calls = 0; room.wins = 0; room.used = []; room.results = []; room.event = 'The shift is live. Management expects results.';
     for (const p of room.players.values()) { p.call = null; p.earned = 0; }
@@ -79,7 +92,7 @@ export class Game {
   dial(socket, data) {
     const { room, player } = this.current(socket); this.playing(room);
     const npc = NPCS.find(n => n.id === data.npcId);
-    if (!npc || player.call || room.used.includes(npc.id) || [...room.players.values()].some(p => p.call?.npcId === npc.id)) throw new Error('That line is unavailable');
+    if (!npc || !room.available.includes(npc.id) || player.call || room.used.includes(npc.id) || [...room.players.values()].some(p => p.call?.npcId === npc.id)) throw new Error('That line is unavailable');
     player.call = { id: randomBytes(8).toString('hex'), npcId: npc.id, trust: npc.trust, susp: npc.susp, turns: 0,
       busy:false, history:[{ who:'system', text:'Line connected. Introduce yourself using your own words.' }],
       preoccupation:'Focus on the product and the customer’s needs', mode:this.config.aiEnabled ? 'Waiting for Supabase' : 'Practice • AI disabled',
@@ -238,7 +251,7 @@ export class Game {
     }
     room.used.push(npc.id); room.results.unshift({ name: npc.name, product: npc.offer, player: player.name, win, value: win ? call.offerPrice : 0, reason });
     room.results = room.results.slice(0, 30); player.call = null;
-    if (room.used.length === NPCS.length) this.finish(room);
+    if (room.used.length === room.available.length) this.finish(room);
   }
   hangup(socket) {
     const { room, player } = this.current(socket); this.playing(room);
@@ -246,8 +259,19 @@ export class Game {
   }
   finish(room) {
     if (room.phase !== 'playing') return;
-    room.phase = 'finished';
-    for (const p of room.players.values()) { p.call?.controller?.abort(); p.call = null; }
+    room.phase='finished'; room.outcome='day-complete';
+    for (const p of room.players.values()) { p.call?.controller?.abort(); p.call=null; }
+    if (room.day === 3) {
+      if (room.credits >= room.quota) {
+        room.credits-=room.quota; room.quotaLevel++;
+        room.outcome='quota-passed';
+        room.event='QUOTA MET. The remainder rolls into your next target.';
+      } else {
+        room.outcome='quota-failed';
+        room.event='QUOTA MISSED. Back to Day 1 and quota level 1.';
+        room.credits=0; room.upgrades=[]; room.lootResults=[]; room.memories={}; room.quotaLevel=1;
+      }
+    }
     this.broadcast(room);
   }
   end(socket) {
@@ -281,7 +305,7 @@ export class Game {
         if (now >= room.endsAt) this.finish(room);
         else if (now >= room.nextEvent) {
           const event = pick(events); room.event = event.text; room.nextEvent = now + 35000;
-          room.quota += event.quota || 0; room.earned += event.cash || 0;
+          room.earned += event.cash || 0; room.credits += event.cash || 0;
           for (const p of room.players.values()) if (p.call) { p.call.trust = clamp(p.call.trust + (event.trust || 0)); p.call.susp = clamp(p.call.susp + (event.suspicion || 0)); }
           this.broadcast(room);
         }
@@ -295,7 +319,7 @@ export class Game {
   snapshot(room) {
     return { code: room.code, host: room.host, phase: room.phase, shift: room.shift, earned: room.earned, quota: room.quota, credits:room.credits, upgrades:room.upgrades, lootResults:room.lootResults,
       calls: room.calls, wins: room.wins, endsAt: room.endsAt || null, serverTime: Date.now(), used: room.used, results: room.results,
-      event: room.event, aiEnabled: this.config.aiEnabled, usage: this.dialogue.ledger.snapshot(),
+      event: room.event, day:room.day,quotaLevel:room.quotaLevel,outcome:room.outcome,available:room.available, aiEnabled: this.config.aiEnabled, usage: this.dialogue.ledger.snapshot(),
       players: [...room.players.values()].map(p => ({ id: p.id, name: p.name, connected: !!p.socketId, earned: p.earned,
         call: p.call ? { ...Object.fromEntries(Object.entries(p.call).filter(([k]) => !['controller', 'requestTimes', 'lastTurn', 'loot'].includes(k))),
           loot:Object.fromEntries(Object.entries(p.call.loot).filter(([k]) => !['ssdPin','walletPin'].includes(k))),
