@@ -57,3 +57,33 @@ test('Node rejects OpenAI keys and production works with no persistent Render di
   const config = configFromEnv({ NODE_ENV:'production',PRIVATE_GAME_PASSWORD:'private-test',AI_ENABLED:'true',GAME_SERVER_TOKEN:'x'.repeat(32),SUPABASE_URL:'https://test.supabase.co' });
   assert.equal(config.functionUrl,'https://test.supabase.co/functions/v1/npc-dialogue'); assert.equal(config.dataDir,undefined);
 });
+
+test('stating the selling price earns PRICE even when customer wants additional assurances',()=>{
+  const npc=NPCS.find(n=>n.id==='vince');
+  const call={trust:22,susp:44,turns:1,resolved:[],contributions:{},pitches:[],computer:{completed:false}};
+  const opening='Hello Sir, I would like to talk to you about selling you a haunted mirror polishing for 210$?';
+  const cautious={reply:'What does that price cover?',intent:'discovery',concernId:null,evidence:'',quality:0,objection:'What protection against damage?',disposition:'considering',wantsToEnd:false,memory:[]};
+  const scored=evaluatePersuasion(npc,call,opening,cautious);
+  assert.deepEqual(call.resolved,['cost']);
+  assert.equal(scored.trust,0);
+  assert.equal(call.discovered,undefined);
+  assert.equal(scored.ready,false);
+  const second='It will prevent your mirror from becoming haunted, 210 dollars is a fair price for polishing';
+  const again=evaluatePersuasion(npc,call,second,{...cautious,intent:'explanation'});
+  assert.equal(call.resolved.filter(id=>id==='cost').length,1);
+  assert.equal(again.trust,0);
+});
+test('a discovery bonus requires a question about customer needs, not a sales introduction',()=>{
+  const npc=NPCS[0],result={reply:'Hmm.',intent:'discovery',concernId:null,evidence:'',quality:0,objection:'Why?',disposition:'considering',wantsToEnd:false,memory:[]};
+  const call={resolved:[],pitches:[],contributions:{}};
+  assert.equal(evaluatePersuasion(npc,call,'I am here to sell you insurance, are you interested?',result).trust,0);
+  assert.equal(evaluatePersuasion(npc,call,'What usually goes wrong with your old toaster?',result).trust,3);
+});
+test('unrelated money and unrealistic prices do not earn the PRICE mark',()=>{
+  const npc=NPCS.find(n=>n.id==='vince'), result={reply:'Okay.',intent:'smalltalk',concernId:null,evidence:'',quality:0,objection:'Details?',disposition:'considering',wantsToEnd:false,memory:[]};
+  for(const words of ['I have $210 in my wallet.','I collect 210 mirrors.','I can sell this polishing for $9000.']){
+    const call={resolved:[],pitches:[],contributions:{}};
+    evaluatePersuasion(npc,call,words,result);
+    assert.deepEqual(call.resolved,[],words);
+  }
+});
