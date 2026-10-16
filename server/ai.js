@@ -47,9 +47,14 @@ export class Dialogue {
     if (this.active >= 2 || Date.now() < this.pausedUntil) throw new DialogueError('AI temporarily busy. No model reply was generated.');
     this.active++;
     try {
-      const result = await this.invoke({ action:'dialogue', requestId:randomUUID(), profile:npc, text,
-        history:call.history.filter(m => m.who !== 'system').slice(0,-1).slice(-10).map(m => ({ role:m.who === 'me' ? 'user' : 'assistant',content:m.text.slice(0,600) })),
-        memory:(call.memory || []).slice(-6), context:{ trust:call.trust, suspicion:call.susp, event:(event || 'Office open').slice(0,200), preoccupation:call.preoccupation.slice(0,200), resolved:(call.resolved || []).filter(id => ['cost','usefulness','credibility'].includes(id)).slice(0,3), listedPrice:npc.value, offerPrice:Number.isInteger(call.offerPrice) ? call.offerPrice : npc.value } }, signal);
+      const result = await this.invoke({ action:'dialogue', requestId:randomUUID(), profile:{
+          name:npc.name,age:npc.age,occupation:npc.occupation.slice(0,50),
+          background:npc.background.slice(0,115),personality:npc.personality.slice(0,100),
+          humor:npc.humor.slice(0,60),speechStyle:npc.speechStyle.slice(0,60),offer:npc.offer,
+          concerns:npc.concerns.map(c=>({id:c.id,detail:c.detail.slice(0,120)}))
+        }, text,
+        history:call.history.filter(m => m.who !== 'system').slice(0,-1).slice(-4).map(m => ({ role:m.who === 'me' ? 'user' : 'assistant',content:m.text.slice(0,220) })),
+        memory:(call.memory || []).slice(-3).map(m=>m.slice(0,90)), context:{ trust:call.trust, suspicion:call.susp, event:'Office', preoccupation:'Sale', resolved:(call.resolved || []).filter(id => ['cost','usefulness','credibility'].includes(id)).slice(0,3), listedPrice:npc.value, offerPrice:Number.isInteger(call.offerPrice) ? call.offerPrice : npc.value } }, signal);
       if (!['GPT-5.6 Luna','Supabase mock • no model call'].includes(result.mode)
         || (result.mode === 'GPT-5.6 Luna' && result.usage.mode !== 'live')
         || (result.mode.includes('mock') && result.usage.mode !== 'mock')) throw new DialogueError('Unexpected AI mode.');

@@ -25,8 +25,8 @@ test('Node preserves ten latest messages and passes credited concerns for NPC ju
   });
   const old = Array.from({length:13},(_,i)=>({ who:i%2 ? 'bot':'me',text:'message '+i }));
   await assert.rejects(d.reply(NPCS[1],{ ...state(),history:[{ who:'system',text:'Line connected' },...old,{ who:'me',text:words }],resolved:['cost'] },words,'Office open'),/budget/);
-  assert.equal(sent.history.length,10);
-  assert.equal(sent.history[0].content,'message 3');
+  assert.equal(sent.history.length,4);
+  assert.equal(sent.history[0].content,'message 9');
   assert.deepEqual(sent.context.resolved,['cost']);
 });
 test('practice mode is explicit and cannot accidentally make a model call', async () => {

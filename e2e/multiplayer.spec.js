@@ -36,8 +36,10 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await b.goto('http://127.0.0.1:4173/scamwithyourfriends/');
   await b.locator('#playerName').fill('Teammate'); await b.locator('#roomCode').fill(code); await b.locator('#joinBtn').click();
   await expect(b.locator('#app')).toBeVisible(); await expect(a.locator('#startShift')).toBeEnabled();
-  await a.locator('#startShift').click(); await a.locator('[data-call="doug"]').click();
-  await expect(a.locator('#transcript')).toBeVisible(); await expect(b.locator('[data-call="doug"]')).toBeDisabled();
+  await a.locator('#startShift').click();
+  const firstCustomer=await a.locator('[data-call]').first().getAttribute('data-call');
+  await a.locator('[data-call="'+firstCustomer+'"]').click();
+  await expect(a.locator('#transcript')).toBeVisible(); await expect(b.locator('[data-call="'+firstCustomer+'"]')).toBeDisabled();
   await expect(a.locator('[data-quick]')).toHaveCount(0);
   await a.locator('#pitchInput').fill('Keep this draft while my teammate helps.');
   await b.locator('[data-app="computer"]').click();
@@ -70,7 +72,7 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await a.locator('#pitchInput').fill('The antenna detects squirrels near the seven lawn flamingos.');
   await a.locator('#pitchForm button.actionbtn').click();
   await expect(a.locator('#dealBtn')).toBeEnabled();
-  await expect(a.locator('.salesObjective')).toContainText('SELL: Deluxe invisible lawn security');
+  await expect(a.locator('.salesObjective')).toContainText('SELL:');
   await expect(a.locator('.pitchMark')).toHaveCount(3);
   await a.waitForTimeout(1300);
   await a.locator('#pitchInput').fill('We can test this fictional device, and I cannot guarantee real results.');
@@ -80,15 +82,16 @@ test('two browsers play a voice call, help with a computer, share earnings and r
   await expect(a.locator('#micBtn')).toContainText('STOP');
   await a.screenshot({ path: 'test-results/desktop-call.png', fullPage: true });
   await a.locator('#dealBtn').click();
-  await expect.poll(async()=> (await a.locator('#earnings').textContent())==='$140' || (await a.locator('#transcript').textContent().catch(()=>'' )).includes('Close failed')).toBe(true);
+  // Probability rolls are covered deterministically in server tests; this checks synced money either way.
+  await a.waitForTimeout(250);
   const earnings=await a.locator('#earnings').textContent();
   await expect(b.locator('#earnings')).toHaveText(earnings);
   await b.reload(); await b.locator('#enterBtn').click();
   await expect(b.locator('#app')).toBeVisible(); await expect(b.locator('#earnings')).toHaveText(earnings);
   await a.locator('#endShift').click();
-  await expect(a.locator('#overlay')).toContainText('SHIFT COMPLETE'); await expect(b.locator('#overlay')).toContainText('SHIFT COMPLETE');
-  await a.locator('#nextShift').click(); await expect(a.locator('#earnings')).toHaveText('$0');
-  await expect(b.locator('[data-call="doug"]')).toBeEnabled();
+  await expect(a.locator('#overlay')).toContainText('DAY 1 COMPLETE'); await expect(b.locator('#overlay')).toContainText('DAY 1 COMPLETE');
+  await a.locator('#nextShift').click(); await expect(a.locator('#earnings')).toHaveText(earnings);
+  await expect(b.locator('[data-call]').first()).toBeEnabled();
   expect(errors).toEqual([]); await ctxA.close(); await ctxB.close();
 });
 test('unsupported speech keeps typed calls available and a small screen fits', async ({ page }) => {
@@ -128,9 +131,9 @@ test('solo room can start immediately and closing odds are visible without repai
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('#startShift')).toBeEnabled();
   await page.locator('#startShift').click();
-  await expect(page.locator('#remaining')).toHaveText('$230');
-  await page.locator('[data-call="mildred"]').click();
-  await expect(page.locator('.salesObjective')).toContainText('SELL: Cloud-powered toaster insurance');
+  await expect(page.locator('#remaining')).toHaveText('$600');
+  await page.locator('[data-call]').first().click();
+  await expect(page.locator('.salesObjective')).toContainText('SELL:');
   await expect(page.locator('.pitchMark')).toHaveCount(3);
   await expect(page.locator('#dealBtn')).toBeEnabled();
   await expect(page.locator('#openComputer')).toContainText('OPTIONAL');

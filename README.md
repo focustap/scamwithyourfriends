@@ -70,3 +70,14 @@ To update a live deployment, redeploy the Render server from main and then paste
 ## Solo shifts and closing risks
 
 One player can start immediately with a $230 initial quota. 2–4-player rooms remain supported. The phone shows an explicit sales goal and three clear PRICE / BENEFIT / TRUST marks with character-specific hints. A customer still needs a relevant answer for each mark. The optional computer repair adds trust and ten points to the closing-odds formula. Deals can be attempted at any time for a server-side 3–95% success chance, without a model request; failed attempts cost 4 trust and add 8 suspicion. Each call gets at most three closing rolls and one per conversation turn. The UI removes repetitive out-of-universe disclaimers; the backend remains confined to generated game data and never accesses device contents or real wallets.
+
+
+## Three-day quota runs and customer rotation
+
+Every quota lasts **three five-minute days**. Each day shows five distinct random callers from the 35-character pool, without repeats within that quota. The starting quota is $600 for one player, $1,000 for two, and +$300 per additional player. Sales, optional computer jobs and bonus apps increase the shared cash bank; installing software spends that same bank, so spending can prevent a quota from clearing. The amount due is deducted only at the **end of Day 3**. Meeting it carries any surplus into the next quota and increases the target by 45%; missing it resets to Quota 1, Day 1, empty cash and no purchased upgrades. Day-end results remain visible before the host starts the next day. The team may end a day early, but that still advances the deadline.
+
+Apps: SSD Extractor and Wallet Cipher open recovery jobs; Commission Booster costs $180 for +20% on successful sales; Turbo Recovery costs $260 and doubles recovery job rewards. These apply to server-verified earnings, not player-supplied amounts.
+
+## Lean NPC input
+
+The Node-to-Edge request now includes four recent conversation messages (two exchanges), the three latest durable memories, the customer identity/personality condensed to bounded strings, three specific objections, and prices, credited criteria and trust state. The Edge prompt is shortened while retaining strict structured persuasion judgments. Actual token savings depend on conversation and should be checked in Supabase settled input/output counts or OpenAI usage; no claimed fixed 500-token usage per reply. The OpenAI usage dashboard may update later than the game accounting display.
