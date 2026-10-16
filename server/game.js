@@ -18,7 +18,7 @@ const stageQuota = (players,level) => Math.round(startingQuota(players) * Math.p
 const preoccupations = ['a goose has taken over the driveway', 'the printer is demanding paid leave', 'a neighbor is hosting competitive soup', 'the fridge has joined a union'];
 const events = [
   { text: 'Casual Friday: customers are 4% more trusting of pantsless corporations.', trust: 4 },
-  { text: 'The office goose ate a coupon. Everyone's trust takes a hit.', quota: 100 },
+  { text: 'The office goose ate a coupon. Suspicion rises by 4.', suspicion: 4 },
   { text: 'The printer accidentally printed money. Petty cash windfall: +$50.', cash: 50 },
   { text: 'Mandatory hold music has been replaced with a kazoo solo. Suspicion +4.', suspicion: 4 },
 ];
